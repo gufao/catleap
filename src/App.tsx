@@ -4,6 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import type { LibraryFilter, SourceFilter } from "./components/Sidebar";
 import { Library } from "./pages/Library";
 import { SettingsPage } from "./pages/Settings";
+import { GameDetail } from "./components/GameDetail";
 import { useLauncher } from "./hooks/useLauncher";
 import { addManualGame } from "./lib/tauri";
 import type { Game } from "./types";
@@ -71,7 +72,7 @@ function App() {
       />
 
       <main className="flex-1 overflow-y-auto bg-gray-50">
-        {(page === "library" || page === "detail") && (
+        {page === "library" && (
           <Library
             key={refreshKey}
             libraryFilter={libraryFilter}
@@ -80,6 +81,14 @@ function App() {
             onStop={stop}
             onAddGame={handleAddGame}
             onSelectGame={handleSelectGame}
+          />
+        )}
+        {page === "detail" && selectedGame && (
+          <GameDetail
+            game={selectedGame}
+            onPlay={play}
+            onStop={stop}
+            onBack={() => setPage("library")}
           />
         )}
         {page === "settings" && (

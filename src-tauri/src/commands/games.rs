@@ -2,6 +2,7 @@ use crate::compat::database;
 use crate::models::{CompatDatabase, Game, GameSource, GameStatus, Settings};
 use crate::process::monitor::ProcessMonitor;
 use crate::steam::scanner;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::State;
@@ -97,4 +98,29 @@ pub fn remove_game(state: State<AppState>, game_id: String) -> Result<(), String
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn read_game_log(state: State<AppState>, game_id: String) -> Result<String, String> {
+    let data_path = state.settings.lock().unwrap().data_path.clone();
+    let logs_dir = data_path.join("logs");
+
+    // Determine source prefix from game
+    let source = {
+        let games = state.games.lock().unwrap();
+        games
+            .iter()
+            .find(|g| g.id == game_id)
+            .map(|g| format!("{:?}", g.source).to_lowercase())
+            .unwrap_or_else(|| "unknown".to_string())
+    };
+
+    let log_path = logs_dir.join(format!("{}_{}.log", source, game_id));
+
+    if !log_path.exists() {
+        return Ok(String::new());
+    }
+
+    fs::read_to_string(&log_path)
+        .map_err(|e| format!("Failed to read log: {}", e))
 }

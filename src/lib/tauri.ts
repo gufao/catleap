@@ -32,3 +32,7 @@ export function getSettings(): Promise<Settings> {
 export function updateSettings(settings: Settings): Promise<void> {
   return invoke<void>("update_settings", { settings });
 }
+
+export function readGameLog(gameId: string): Promise<string> {
+  return invoke<string>("read_game_log", { gameId });
+}
