@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "games": [
+    {"appid": "1245620", "name": "Elden Ring", "status": "compatible", "env": {"WINEESYNC": "1"}, "dll_overrides": [], "launch_args": [], "notes": "Works well on Apple Silicon with GPTK"},
+    {"appid": "1091500", "name": "Cyberpunk 2077", "status": "experimental", "env": {"WINEESYNC": "1"}, "dll_overrides": [], "launch_args": [], "notes": "Playable but may have graphical glitches"},
+    {"appid": "1551360", "name": "Forza Horizon 5", "status": "compatible", "env": {"WINEESYNC": "1"}, "dll_overrides": [], "launch_args": [], "notes": "Runs well with GPTK 2"},
+    {"appid": "1174180", "name": "Red Dead Redemption 2", "status": "experimental", "env": {"WINEESYNC": "1"}, "dll_overrides": [], "launch_args": ["-vulkan"], "notes": "Use Vulkan renderer"},
+    {"appid": "730", "name": "Counter-Strike 2", "status": "compatible", "env": {"WINEESYNC": "1", "DXVK_HUD": "0"}, "dll_overrides": ["d3d11=native", "dxgi=native"], "launch_args": ["-vulkan"], "notes": "Needs Vulkan mode"},
+    {"appid": "570", "name": "Dota 2", "status": "compatible", "env": {"WINEESYNC": "1"}, "dll_overrides": [], "launch_args": ["-vulkan"], "notes": "Use Vulkan renderer"},
+    {"appid": "2357570", "name": "Overwatch 2", "status": "incompatible", "env": {}, "dll_overrides": [], "launch_args": [], "notes": "Requires kernel-level anti-cheat"},
+    {"appid": "578080", "name": "PUBG: Battlegrounds", "status": "incompatible", "env": {}, "dll_overrides": [], "launch_args": [], "notes": "Requires kernel-level anti-cheat"},
+    {"appid": "892970", "name": "Valheim", "status": "compatible", "env": {"WINEESYNC": "1"}, "dll_overrides": [], "launch_args": [], "notes": "Works well with Vulkan"},
+    {"appid": "413150", "name": "Stardew Valley", "status": "compatible", "env": {}, "dll_overrides": [], "launch_args": [], "notes": "Perfect compatibility"}
+  ]
+}

@@ -1,3 +1,4 @@
+pub mod compat;
 pub mod models;
 pub mod steam;
 
