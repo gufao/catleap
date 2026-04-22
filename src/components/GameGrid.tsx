@@ -5,9 +5,10 @@ interface GameGridProps {
   games: Game[];
   onPlay: (gameId: string) => void;
   onStop: (gameId: string) => void;
+  onSelectGame?: (game: Game) => void;
 }
 
-export function GameGrid({ games, onPlay, onStop }: GameGridProps) {
+export function GameGrid({ games, onPlay, onStop, onSelectGame }: GameGridProps) {
   if (games.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -37,7 +38,13 @@ export function GameGrid({ games, onPlay, onStop }: GameGridProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
       {games.map((game) => (
-        <GameCard key={game.id} game={game} onPlay={onPlay} onStop={onStop} />
+        <GameCard
+          key={game.id}
+          game={game}
+          onPlay={onPlay}
+          onStop={onStop}
+          onClick={onSelectGame ? () => onSelectGame(game) : undefined}
+        />
       ))}
     </div>
   );

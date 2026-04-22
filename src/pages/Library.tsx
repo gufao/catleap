@@ -3,13 +3,15 @@ import { GameGrid } from "../components/GameGrid";
 import { SearchBar } from "../components/SearchBar";
 import { useGames } from "../hooks/useGames";
 import type { LibraryFilter, SourceFilter } from "../components/Sidebar";
-import type { GameStatus } from "../types";
+import type { Game, GameStatus } from "../types";
 
 interface LibraryProps {
   libraryFilter: LibraryFilter;
   sourceFilter: SourceFilter;
   onPlay: (gameId: string) => void;
   onStop: (gameId: string) => void;
+  onAddGame?: () => void;
+  onSelectGame?: (game: Game) => void;
 }
 
 function libraryFilterToStatus(f: LibraryFilter): GameStatus | "all" {
@@ -18,7 +20,7 @@ function libraryFilterToStatus(f: LibraryFilter): GameStatus | "all" {
   return "all";
 }
 
-export function Library({ libraryFilter, sourceFilter, onPlay, onStop }: LibraryProps) {
+export function Library({ libraryFilter, sourceFilter, onPlay, onStop, onAddGame, onSelectGame }: LibraryProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { games, loading, error } = useGames({
@@ -26,10 +28,6 @@ export function Library({ libraryFilter, sourceFilter, onPlay, onStop }: Library
     sourceFilter: sourceFilter === "all" ? "all" : sourceFilter,
     searchQuery,
   });
-
-  function handleAddGame() {
-    console.log("Add Game clicked — manual game addition coming soon");
-  }
 
   return (
     <div className="p-8">
@@ -45,7 +43,7 @@ export function Library({ libraryFilter, sourceFilter, onPlay, onStop }: Library
         <SearchBar
           query={searchQuery}
           onQueryChange={setSearchQuery}
-          onAddGame={handleAddGame}
+          onAddGame={onAddGame ?? (() => {})}
         />
       </div>
 
@@ -61,7 +59,14 @@ export function Library({ libraryFilter, sourceFilter, onPlay, onStop }: Library
         </div>
       )}
 
-      {!loading && <GameGrid games={games} onPlay={onPlay} onStop={onStop} />}
+      {!loading && (
+        <GameGrid
+          games={games}
+          onPlay={onPlay}
+          onStop={onStop}
+          onSelectGame={onSelectGame}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ interface GameCardProps {
   game: Game;
   onPlay: (gameId: string) => void;
   onStop: (gameId: string) => void;
+  onClick?: () => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -27,7 +28,7 @@ function gradientForId(id: string): string {
   return gradients[hash % gradients.length];
 }
 
-export function GameCard({ game, onPlay, onStop }: GameCardProps) {
+export function GameCard({ game, onPlay, onStop, onClick }: GameCardProps) {
   const isIncompatible = game.status === "incompatible";
   const subtitle = [
     game.source === "steam" ? "Steam" : "Manual",
@@ -41,9 +42,10 @@ export function GameCard({ game, onPlay, onStop }: GameCardProps) {
 
   return (
     <div
+      onClick={onClick}
       className={`rounded-xl overflow-hidden bg-white shadow-sm border border-gray-100 flex flex-col transition-all duration-150 hover:shadow-md ${
         isIncompatible ? "opacity-60" : ""
-      }`}
+      } ${onClick ? "cursor-pointer" : ""}`}
     >
       {/* Cover */}
       <div
@@ -70,7 +72,7 @@ export function GameCard({ game, onPlay, onStop }: GameCardProps) {
           <div className="mt-auto pt-1">
             {game.is_running ? (
               <button
-                onClick={() => onStop(game.id)}
+                onClick={(e) => { e.stopPropagation(); onStop(game.id); }}
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
@@ -78,7 +80,7 @@ export function GameCard({ game, onPlay, onStop }: GameCardProps) {
               </button>
             ) : (
               <button
-                onClick={() => onPlay(game.id)}
+                onClick={(e) => { e.stopPropagation(); onPlay(game.id); }}
                 className="w-full px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-700 transition-colors"
               >
                 {playLabel}
