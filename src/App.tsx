@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import type { LibraryFilter, SourceFilter } from "./components/Sidebar";
 import { Library } from "./pages/Library";
+import { useLauncher } from "./hooks/useLauncher";
 
 type Page = "library" | "settings";
 
@@ -9,14 +10,13 @@ function App() {
   const [page, setPage] = useState<Page>("library");
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  function handlePlay(gameId: string) {
-    console.log("play game:", gameId);
-  }
+  const handleStatusChange = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
-  function handleStop(gameId: string) {
-    console.log("stop game:", gameId);
-  }
+  const { play, stop } = useLauncher(handleStatusChange);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white font-sans">
@@ -37,10 +37,11 @@ function App() {
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {page === "library" && (
           <Library
+            key={refreshKey}
             libraryFilter={libraryFilter}
             sourceFilter={sourceFilter}
-            onPlay={handlePlay}
-            onStop={handleStop}
+            onPlay={play}
+            onStop={stop}
           />
         )}
         {page === "settings" && (
