@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { scanSteam, listGames } from "../lib/tauri";
 import type { Game, GameStatus, GameSource } from "../types";
 
@@ -24,36 +25,57 @@ export function useGames({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      setError(null);
+  const load = useCallback(async (cancelled: { value: boolean }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const games = await scanSteam();
+      if (!cancelled.value) setAllGames(games);
+    } catch (scanErr) {
+      // Graceful fallback to listGames if scan fails
+      console.warn("Steam scan failed, falling back to listGames:", scanErr);
       try {
-        const games = await scanSteam();
-        if (!cancelled) setAllGames(games);
-      } catch (scanErr) {
-        // Graceful fallback to listGames if scan fails
-        console.warn("Steam scan failed, falling back to listGames:", scanErr);
-        try {
-          const games = await listGames();
-          if (!cancelled) setAllGames(games);
-        } catch (listErr) {
-          if (!cancelled) {
-            setError(String(listErr));
-          }
+        const games = await listGames();
+        if (!cancelled.value) setAllGames(games);
+      } catch (listErr) {
+        if (!cancelled.value) {
+          setError(String(listErr));
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+    } finally {
+      if (!cancelled.value) setLoading(false);
     }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    const cancelled = { value: false };
+    load(cancelled);
+    return () => {
+      cancelled.value = true;
+    };
+  }, [load]);
+
+  // Listen for Steam library changes and refresh
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let active = true;
+
+    listen<void>("steam-library-changed", () => {
+      const cancelled = { value: false };
+      load(cancelled);
+    }).then((fn) => {
+      if (active) {
+        unlisten = fn;
+      } else {
+        fn(); // immediately unlisten if already unmounted
+      }
+    });
+
+    return () => {
+      active = false;
+      if (unlisten) unlisten();
+    };
+  }, [load]);
 
   const games = useMemo(() => {
     let filtered = allGames;
