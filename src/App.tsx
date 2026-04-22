@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import type { LibraryFilter, SourceFilter } from "./components/Sidebar";
 import { Library } from "./pages/Library";
+import { SettingsPage } from "./pages/Settings";
 import { useLauncher } from "./hooks/useLauncher";
 
 type Page = "library" | "settings";
@@ -45,10 +46,7 @@ function App() {
           />
         )}
         {page === "settings" && (
-          <div className="p-8">
-            <h1 className="text-2xl font-semibold text-gray-900 mb-1">Settings</h1>
-            <p className="text-gray-400 text-sm">Settings page coming soon.</p>
-          </div>
+          <SettingsPage onBack={() => setPage("library")} />
         )}
       </main>
     </div>
