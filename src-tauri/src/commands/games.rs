@@ -1,5 +1,6 @@
 use crate::compat::database;
 use crate::models::{CompatDatabase, Game, GameSource, GameStatus, Settings};
+use crate::process::monitor::ProcessMonitor;
 use crate::steam::scanner;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -9,6 +10,7 @@ pub struct AppState {
     pub games: Mutex<Vec<Game>>,
     pub compat_db: CompatDatabase,
     pub settings: Mutex<Settings>,
+    pub process_monitor: ProcessMonitor,
 }
 
 #[tauri::command]

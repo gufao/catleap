@@ -6,8 +6,10 @@ pub mod steam;
 pub mod wine;
 
 use commands::games::{add_manual_game, list_games, remove_game, scan_steam, AppState};
+use commands::launcher::{get_running_games, play_game, stop_game};
 use compat::database;
 use models::Settings;
+use process::monitor::ProcessMonitor;
 use std::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -21,12 +23,16 @@ pub fn run() {
             games: Mutex::new(Vec::new()),
             compat_db,
             settings: Mutex::new(Settings::default()),
+            process_monitor: ProcessMonitor::new(),
         })
         .invoke_handler(tauri::generate_handler![
             list_games,
             scan_steam,
             add_manual_game,
             remove_game,
+            play_game,
+            stop_game,
+            get_running_games,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
