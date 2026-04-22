@@ -41,16 +41,24 @@ pub fn find_wine_binary(data_path: &Path) -> Result<PathBuf, String> {
         return Ok(bundled);
     }
 
-    // 2. Apple GPTK via Homebrew (gcenx tap) — best option for gaming
-    let gptk = PathBuf::from("/opt/homebrew/opt/game-porting-toolkit/bin/wine64");
-    if gptk.exists() {
-        return Ok(gptk);
+    // 2. Apple GPTK via official Homebrew tap (apple/apple)
+    let gptk_official = PathBuf::from("/opt/homebrew/opt/game-porting-toolkit/bin/wine64");
+    if gptk_official.exists() {
+        return Ok(gptk_official);
     }
 
-    // 3. wine-crossover via Homebrew (gcenx tap)
-    let crossover_brew = PathBuf::from("/opt/homebrew/opt/wine-crossover/bin/wine64");
-    if crossover_brew.exists() {
-        return Ok(crossover_brew);
+    // 3. Apple GPTK alternate Cellar path
+    let gptk_cellar = PathBuf::from("/opt/homebrew/Cellar/game-porting-toolkit");
+    if gptk_cellar.exists() {
+        // Find the wine64 binary inside the versioned directory
+        if let Ok(entries) = std::fs::read_dir(&gptk_cellar) {
+            for entry in entries.flatten() {
+                let wine = entry.path().join("bin/wine64");
+                if wine.exists() {
+                    return Ok(wine);
+                }
+            }
+        }
     }
 
     // 4. Generic Homebrew wine64
@@ -80,15 +88,13 @@ pub fn find_wine_binary(data_path: &Path) -> Result<PathBuf, String> {
         }
     }
 
-    Err("No Wine/GPTK found. Install via: brew tap gcenx/wine && brew install --no-quarantine gcenx/wine/game-porting-toolkit".to_string())
+    Err("No Wine/GPTK found. Install via: brew tap apple/apple http://github.com/apple/homebrew-apple && brew install apple/apple/game-porting-toolkit".to_string())
 }
 
 fn detect_variant(path: &Path) -> String {
     let path_str = path.to_string_lossy();
     if path_str.contains("game-porting-toolkit") {
         "gptk".to_string()
-    } else if path_str.contains("wine-crossover") {
-        "wine-crossover".to_string()
     } else if path_str.contains("CrossOver.app") {
         "crossover".to_string()
     } else if path_str.contains("/opt/homebrew") {

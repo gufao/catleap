@@ -112,14 +112,14 @@ export function FirstRun({ onComplete }: FirstRunProps) {
               <div className="bg-gray-900 rounded-lg p-3 font-mono text-xs text-green-400 select-all leading-relaxed">
                 {wineStatus?.homebrew_available ? (
                   <>
-                    <span className="text-gray-500"># Add the GPTK tap:</span>
+                    <span className="text-gray-500"># Add Apple's official tap:</span>
                     <br />
-                    brew tap gcenx/wine
+                    brew tap apple/apple http://github.com/apple/homebrew-apple
                     <br />
                     <br />
-                    <span className="text-gray-500"># Install GPTK:</span>
+                    <span className="text-gray-500"># Install GPTK (takes ~1h, compiles from source):</span>
                     <br />
-                    brew install --no-quarantine gcenx/wine/game-porting-toolkit
+                    brew install apple/apple/game-porting-toolkit
                   </>
                 ) : (
                   <>
@@ -129,17 +129,20 @@ export function FirstRun({ onComplete }: FirstRunProps) {
                     https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
                     <br />
                     <br />
-                    <span className="text-gray-500"># 2. Add the GPTK tap:</span>
+                    <span className="text-gray-500"># 2. Add Apple's official tap:</span>
                     <br />
-                    brew tap gcenx/wine
+                    brew tap apple/apple http://github.com/apple/homebrew-apple
                     <br />
                     <br />
-                    <span className="text-gray-500"># 3. Install GPTK:</span>
+                    <span className="text-gray-500"># 3. Install GPTK (~1h, compiles from source):</span>
                     <br />
-                    brew install --no-quarantine gcenx/wine/game-porting-toolkit
+                    brew install apple/apple/game-porting-toolkit
                   </>
                 )}
               </div>
+              <p className="text-xs text-amber-600 mt-3">
+                This compiles from source and may take over an hour. After installing, click the button below.
+              </p>
               <p className="text-xs text-amber-600 mt-3">
                 This may take a while. After installing, click the button below.
               </p>
