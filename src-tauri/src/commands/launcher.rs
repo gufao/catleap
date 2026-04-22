@@ -1,4 +1,5 @@
 use crate::commands::games::AppState;
+use crate::wine::bundled::{self, WineStatus};
 use tauri::State;
 
 /// Launch a game by ID and begin tracking its process.
@@ -54,4 +55,11 @@ pub fn get_running_games(state: State<AppState>) -> Vec<String> {
     }
 
     running_ids
+}
+
+/// Check if Wine/GPTK is installed and return status info
+#[tauri::command]
+pub fn check_wine_status(state: State<AppState>) -> WineStatus {
+    let data_path = state.settings.lock().unwrap().data_path.clone();
+    bundled::check_wine_status(&data_path)
 }

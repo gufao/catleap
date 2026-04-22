@@ -6,7 +6,7 @@ pub mod steam;
 pub mod wine;
 
 use commands::games::{add_manual_game, list_games, read_game_log, remove_game, scan_steam, AppState};
-use commands::launcher::{get_running_games, play_game, stop_game};
+use commands::launcher::{check_wine_status, get_running_games, play_game, stop_game};
 use commands::settings::{get_settings, update_settings};
 use compat::database;
 use models::Settings;
@@ -102,6 +102,7 @@ pub fn run() {
             get_settings,
             update_settings,
             read_game_log,
+            check_wine_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

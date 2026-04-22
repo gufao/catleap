@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Game, Settings } from "../types";
+import type { Game, Settings, WineStatus } from "../types";
 
 export function listGames(): Promise<Game[]> {
   return invoke<Game[]>("list_games");
@@ -35,4 +35,8 @@ export function updateSettings(settings: Settings): Promise<void> {
 
 export function readGameLog(gameId: string): Promise<string> {
   return invoke<string>("read_game_log", { gameId });
+}
+
+export function checkWineStatus(): Promise<WineStatus> {
+  return invoke<WineStatus>("check_wine_status");
 }

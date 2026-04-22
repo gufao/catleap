@@ -17,3 +17,10 @@ export interface Settings {
   steam_path: string;
   data_path: string;
 }
+
+export interface WineStatus {
+  installed: boolean;
+  variant: string;
+  path: string;
+  homebrew_available: boolean;
+}
