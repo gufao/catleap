@@ -80,7 +80,7 @@ pub fn find_wine_binary(data_path: &Path) -> Result<PathBuf, String> {
         }
     }
 
-    Err("No Wine/GPTK found. Install via: brew install --no-quarantine gcenx/wine/game-porting-toolkit".to_string())
+    Err("No Wine/GPTK found. Install via: brew tap gcenx/wine && brew install --no-quarantine gcenx/wine/game-porting-toolkit".to_string())
 }
 
 fn detect_variant(path: &Path) -> String {

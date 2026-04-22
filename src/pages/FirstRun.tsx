@@ -109,18 +109,32 @@ export function FirstRun({ onComplete }: FirstRunProps) {
                 Catleap needs Apple's Game Porting Toolkit to run Windows games.
                 Install it via Homebrew:
               </p>
-              <div className="bg-gray-900 rounded-lg p-3 font-mono text-xs text-green-400 select-all">
+              <div className="bg-gray-900 rounded-lg p-3 font-mono text-xs text-green-400 select-all leading-relaxed">
                 {wineStatus?.homebrew_available ? (
-                  <>brew install --no-quarantine gcenx/wine/game-porting-toolkit</>
+                  <>
+                    <span className="text-gray-500"># Add the GPTK tap:</span>
+                    <br />
+                    brew tap gcenx/wine
+                    <br />
+                    <br />
+                    <span className="text-gray-500"># Install GPTK:</span>
+                    <br />
+                    brew install --no-quarantine gcenx/wine/game-porting-toolkit
+                  </>
                 ) : (
                   <>
-                    <span className="text-gray-500"># Install Homebrew first:</span>
+                    <span className="text-gray-500"># 1. Install Homebrew:</span>
                     <br />
                     /bin/bash -c "$(curl -fsSL
                     https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
                     <br />
                     <br />
-                    <span className="text-gray-500"># Then install GPTK:</span>
+                    <span className="text-gray-500"># 2. Add the GPTK tap:</span>
+                    <br />
+                    brew tap gcenx/wine
+                    <br />
+                    <br />
+                    <span className="text-gray-500"># 3. Install GPTK:</span>
                     <br />
                     brew install --no-quarantine gcenx/wine/game-porting-toolkit
                   </>
