@@ -2,6 +2,7 @@ pub mod commands;
 pub mod compat;
 pub mod models;
 pub mod steam;
+pub mod wine;
 
 use commands::games::{add_manual_game, list_games, remove_game, scan_steam, AppState};
 use compat::database;
