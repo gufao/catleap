@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod compat;
 pub mod models;
+pub mod process;
 pub mod steam;
 pub mod wine;
 
