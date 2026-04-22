@@ -15,12 +15,15 @@ use process::monitor::ProcessMonitor;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
+/// Load settings from disk at startup; falls back to defaults if the file
+/// does not exist or cannot be parsed.
 fn load_settings_from_disk() -> Settings {
     let default = Settings::default();
     let settings_path = default.data_path.join("config").join("settings.json");
     if settings_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&settings_path) {
             if let Ok(settings) = serde_json::from_str::<Settings>(&content) {
+                log::info!("Loaded settings from {:?}", settings_path);
                 return settings;
             }
         }
