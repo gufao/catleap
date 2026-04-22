@@ -4,14 +4,20 @@ import { Sidebar } from "./components/Sidebar";
 import type { LibraryFilter, SourceFilter } from "./components/Sidebar";
 import { Library } from "./pages/Library";
 import { SettingsPage } from "./pages/Settings";
+import { FirstRun } from "./pages/FirstRun";
 import { GameDetail } from "./components/GameDetail";
 import { useLauncher } from "./hooks/useLauncher";
 import { addManualGame } from "./lib/tauri";
 import type { Game } from "./types";
 
+const ONBOARDED_KEY = "catleap_onboarded";
+
 type Page = "library" | "settings" | "detail";
 
 function App() {
+  const [firstRun, setFirstRun] = useState(() => {
+    return localStorage.getItem(ONBOARDED_KEY) !== "true";
+  });
   const [page, setPage] = useState<Page>("library");
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
@@ -23,6 +29,12 @@ function App() {
   }, []);
 
   const { play, stop } = useLauncher(handleStatusChange);
+
+  const handleFirstRunComplete = useCallback(() => {
+    localStorage.setItem(ONBOARDED_KEY, "true");
+    setFirstRun(false);
+    setPage("library");
+  }, []);
 
   const handleAddGame = useCallback(async () => {
     try {
@@ -54,6 +66,10 @@ function App() {
     setSelectedGame(game);
     setPage("detail");
   }, []);
+
+  if (firstRun) {
+    return <FirstRun onComplete={handleFirstRunComplete} />;
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white font-sans">
