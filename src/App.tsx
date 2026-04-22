@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import type { LibraryFilter, SourceFilter } from "./components/Sidebar";
+import { Library } from "./pages/Library";
 
 type Page = "library" | "settings";
 
@@ -8,6 +9,14 @@ function App() {
   const [page, setPage] = useState<Page>("library");
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+
+  function handlePlay(gameId: string) {
+    console.log("play game:", gameId);
+  }
+
+  function handleStop(gameId: string) {
+    console.log("stop game:", gameId);
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white font-sans">
@@ -27,11 +36,12 @@ function App() {
 
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {page === "library" && (
-          <div className="p-8">
-            <p className="text-gray-400 text-sm">
-              Library — filter: {libraryFilter} / source: {sourceFilter}
-            </p>
-          </div>
+          <Library
+            libraryFilter={libraryFilter}
+            sourceFilter={sourceFilter}
+            onPlay={handlePlay}
+            onStop={handleStop}
+          />
         )}
         {page === "settings" && (
           <div className="p-8">
