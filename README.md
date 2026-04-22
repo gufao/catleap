@@ -1,7 +1,25 @@
-# Tauri + React + Typescript
+# Catleap
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Free, open-source macOS game launcher. Play Windows games on your Mac.
 
-## Recommended IDE Setup
+## Features
+- Zero configuration — click Play, game runs
+- Steam library detection — automatically finds your installed games
+- Compatibility database — curated configs for popular games
+- Manual game support — add any Windows .exe
+- Isolated Wine prefixes — per-game, no conflicts
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Requirements
+- macOS 14+ (Sonoma or later)
+- Apple Silicon (M1+)
+- Wine or GPTK installed (bundled in release builds)
+
+## Development
+```bash
+pnpm install
+pnpm tauri dev
+pnpm tauri build
+```
+
+## License
+MIT
