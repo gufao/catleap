@@ -40,3 +40,11 @@ export function readGameLog(gameId: string): Promise<string> {
 export function checkWineStatus(): Promise<WineStatus> {
   return invoke<WineStatus>("check_wine_status");
 }
+
+export function startWineInstall(): Promise<void> {
+  return invoke<void>("start_wine_install");
+}
+
+export function cancelWineInstall(): Promise<void> {
+  return invoke<void>("cancel_wine_install");
+}

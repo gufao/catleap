@@ -1,8 +1,11 @@
+use futures_util::StreamExt;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 pub const WINE_EXPECTED_VERSION: &str = "1.0.0";
 // Placeholder until first real release is published.
@@ -125,6 +128,114 @@ pub fn promote_staging(staging: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Stream `url` to `dest`. Calls `on_progress(done, total)` periodically.
+/// Aborts early if `cancelled` becomes true; returns Err("cancelled") then.
+pub async fn download_to(
+    url: &str,
+    dest: &Path,
+    cancelled: Arc<AtomicBool>,
+    mut on_progress: impl FnMut(u64, u64),
+) -> Result<(), String> {
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("request: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let total = resp.content_length().unwrap_or(0);
+
+    let mut file = fs::File::create(dest).map_err(|e| format!("create {}: {e}", dest.display()))?;
+    let mut stream = resp.bytes_stream();
+    let mut done: u64 = 0;
+    let mut last_emit: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        if cancelled.load(Ordering::Relaxed) {
+            return Err("cancelled".to_string());
+        }
+        let bytes = chunk.map_err(|e| format!("stream: {e}"))?;
+        file.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+        done += bytes.len() as u64;
+        if done - last_emit >= 64 * 1024 || done == total {
+            on_progress(done, total);
+            last_emit = done;
+        }
+    }
+    Ok(())
+}
+
+/// Run the full install flow. `emit_phase` is called for every phase
+/// transition. `cancelled` aborts cleanly at safe boundaries.
+pub async fn run_install(
+    data_path: &Path,
+    cancelled: Arc<AtomicBool>,
+    mut emit_phase: impl FnMut(InstallPhase),
+) -> Result<(), String> {
+    let wine_dir = data_path.join("wine");
+    let staging = data_path.join("wine.partial");
+    let archive = data_path.join("wine.tar.xz.partial");
+
+    fs::create_dir_all(data_path).map_err(|e| format!("mkdir {}: {e}", data_path.display()))?;
+
+    // 1. Disk space
+    emit_phase(InstallPhase::CheckingSpace);
+    let free = free_bytes(data_path)?;
+    if free < REQUIRED_FREE_BYTES {
+        return Err(format!(
+            "Need {} MB free, only {} MB available",
+            REQUIRED_FREE_BYTES / 1024 / 1024,
+            free / 1024 / 1024
+        ));
+    }
+
+    // 2. Download
+    let mut last_progress = std::time::Instant::now();
+    download_to(WINE_RELEASE_URL, &archive, cancelled.clone(), |d, t| {
+        if last_progress.elapsed() >= std::time::Duration::from_millis(100) {
+            last_progress = std::time::Instant::now();
+            emit_phase(InstallPhase::Downloading {
+                bytes_done: d,
+                bytes_total: t,
+            });
+        }
+    })
+    .await?;
+    if cancelled.load(Ordering::Relaxed) {
+        let _ = fs::remove_file(&archive);
+        return Err("cancelled".into());
+    }
+
+    // 3. Verify (one retry on mismatch)
+    emit_phase(InstallPhase::Verifying);
+    if let Err(e) = verify_sha256(&archive, WINE_EXPECTED_SHA256) {
+        log::warn!("first SHA verify failed: {e}; retrying");
+        let _ = fs::remove_file(&archive);
+        download_to(WINE_RELEASE_URL, &archive, cancelled.clone(), |_, _| {}).await?;
+        verify_sha256(&archive, WINE_EXPECTED_SHA256)?;
+    }
+
+    // 4. Extract into staging
+    emit_phase(InstallPhase::Extracting);
+    let _ = fs::remove_dir_all(&staging);
+    extract_tar_xz(&archive, &staging)?;
+    let _ = fs::remove_file(&archive);
+
+    // 5. xattr + codesign
+    emit_phase(InstallPhase::Codesigning);
+    clear_quarantine_and_sign(&staging)?;
+
+    // 6. Promote staging → wine_dir
+    promote_staging(&staging, &wine_dir)?;
+
+    emit_phase(InstallPhase::Done);
+    Ok(())
+}
+
+/// Skip if a previously-installed wine matches the expected version.
+pub fn already_installed(data_path: &Path, current_version: Option<&str>) -> bool {
+    let bin = data_path.join("wine/bin/wine64");
+    bin.exists() && current_version == Some(WINE_EXPECTED_VERSION)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +304,64 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let n = free_bytes(tmp.path()).unwrap();
         assert!(n > 0);
+    }
+
+    #[tokio::test]
+    async fn download_streams_and_reports_progress() {
+        let mut server = mockito::Server::new_async().await;
+        let body = vec![0xABu8; 200_000];
+        let m = server
+            .mock("GET", "/wine.tar.xz")
+            .with_status(200)
+            .with_body(&body)
+            .create_async()
+            .await;
+
+        let tmp = TempDir::new().unwrap();
+        let dest = tmp.path().join("wine.tar.xz");
+
+        let mut last = (0u64, 0u64);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        download_to(&format!("{}/wine.tar.xz", server.url()), &dest, cancelled, |d, t| {
+            last = (d, t);
+        })
+        .await
+        .unwrap();
+
+        m.assert_async().await;
+        assert_eq!(fs::read(&dest).unwrap(), body);
+        assert_eq!(last.0, 200_000);
+    }
+
+    #[tokio::test]
+    async fn download_404_returns_error() {
+        let mut server = mockito::Server::new_async().await;
+        server.mock("GET", "/nope").with_status(404).create_async().await;
+        let tmp = TempDir::new().unwrap();
+        let dest = tmp.path().join("x");
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let err = download_to(&format!("{}/nope", server.url()), &dest, cancelled, |_, _| {})
+            .await
+            .unwrap_err();
+        assert!(err.contains("404"));
+    }
+
+    #[tokio::test]
+    async fn download_respects_cancel_flag() {
+        let mut server = mockito::Server::new_async().await;
+        let body = vec![0u8; 1_000_000];
+        server
+            .mock("GET", "/big")
+            .with_status(200)
+            .with_body(&body)
+            .create_async()
+            .await;
+        let tmp = TempDir::new().unwrap();
+        let dest = tmp.path().join("x");
+        let cancelled = Arc::new(AtomicBool::new(true)); // already cancelled
+        let err = download_to(&format!("{}/big", server.url()), &dest, cancelled, |_, _| {})
+            .await
+            .unwrap_err();
+        assert_eq!(err, "cancelled");
     }
 }

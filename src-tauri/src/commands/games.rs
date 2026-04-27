@@ -4,6 +4,8 @@ use crate::process::monitor::ProcessMonitor;
 use crate::steam::scanner;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -12,6 +14,7 @@ pub struct AppState {
     pub compat_db: CompatDatabase,
     pub settings: Mutex<Settings>,
     pub process_monitor: ProcessMonitor,
+    pub install_cancel: Arc<AtomicBool>,
 }
 
 #[tauri::command]
