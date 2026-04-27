@@ -7,7 +7,7 @@ pub mod wine;
 
 use commands::games::{add_manual_game, list_games, read_game_log, remove_game, scan_steam, AppState};
 use commands::launcher::{check_wine_status, get_running_games, play_game, stop_game};
-use commands::onboarding::{cancel_wine_install, start_wine_install};
+use commands::onboarding::{cancel_wine_install, eject_gptk_volume, skip_gptk, start_gptk_watch, start_wine_install, stop_gptk_watch};
 use commands::settings::{get_settings, update_settings};
 use compat::database;
 use models::Settings;
@@ -48,6 +48,7 @@ pub fn run() {
             settings: Mutex::new(settings),
             process_monitor: ProcessMonitor::new(),
             install_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            gptk_watching: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -107,6 +108,10 @@ pub fn run() {
             check_wine_status,
             start_wine_install,
             cancel_wine_install,
+            start_gptk_watch,
+            stop_gptk_watch,
+            skip_gptk,
+            eject_gptk_volume,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

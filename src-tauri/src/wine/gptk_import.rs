@@ -134,6 +134,51 @@ pub fn copy_libs(info: &GptkInfo, data_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+use notify::{EventKind, RecursiveMode, Watcher};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+const VOLUMES_ROOT: &str = "/Volumes";
+
+/// Block-watch `/Volumes` for new GPTK volumes. Calls `on_found` once a
+/// volume with the right layout appears (or is already present at startup).
+/// Returns when `running` becomes false or after `on_found` is invoked.
+pub fn watch_for_gptk(
+    running: Arc<AtomicBool>,
+    mut on_found: impl FnMut(GptkInfo),
+) -> Result<(), String> {
+    if let Some(info) = pick_best(&scan_volumes(Path::new(VOLUMES_ROOT))) {
+        on_found(info);
+        return Ok(());
+    }
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher =
+        notify::recommended_watcher(move |res| {
+            let _ = tx.send(res);
+        })
+        .map_err(|e| format!("watcher: {e}"))?;
+    watcher
+        .watch(Path::new(VOLUMES_ROOT), RecursiveMode::NonRecursive)
+        .map_err(|e| format!("watch /Volumes: {e}"))?;
+
+    while running.load(Ordering::Relaxed) {
+        match rx.recv_timeout(std::time::Duration::from_millis(500)) {
+            Ok(Ok(event)) => {
+                if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
+                    if let Some(info) = pick_best(&scan_volumes(Path::new(VOLUMES_ROOT))) {
+                        on_found(info);
+                        return Ok(());
+                    }
+                }
+            }
+            Ok(Err(_)) | Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(_) => break,
+        }
+    }
+    Ok(())
+}
+
 /// Eject a mounted DMG via `hdiutil detach`.
 pub fn eject(volume: &Path) -> Result<(), String> {
     let status = Command::new("/usr/bin/hdiutil")

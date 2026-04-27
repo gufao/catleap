@@ -55,3 +55,19 @@ export function startWineInstall(): Promise<void> {
 export function cancelWineInstall(): Promise<void> {
   return invoke<void>("cancel_wine_install");
 }
+
+export function startGptkWatch(): Promise<void> {
+  return invoke<void>("start_gptk_watch");
+}
+
+export function stopGptkWatch(): Promise<void> {
+  return invoke<void>("stop_gptk_watch");
+}
+
+export function skipGptk(): Promise<void> {
+  return invoke<void>("skip_gptk");
+}
+
+export function ejectGptkVolume(volumePath: string): Promise<void> {
+  return invoke<void>("eject_gptk_volume", { volumePath });
+}

@@ -15,6 +15,7 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     pub process_monitor: ProcessMonitor,
     pub install_cancel: Arc<AtomicBool>,
+    pub gptk_watching: Arc<AtomicBool>,
 }
 
 #[tauri::command]
