@@ -56,6 +56,12 @@ pub struct CompatDatabase {
 pub struct Settings {
     pub steam_path: PathBuf,
     pub data_path: PathBuf,
+    #[serde(default)]
+    pub wine_version: Option<String>,
+    #[serde(default)]
+    pub gptk_version: Option<String>,
+    #[serde(default)]
+    pub gptk_skipped: bool,
 }
 
 impl Default for Settings {
@@ -64,6 +70,9 @@ impl Default for Settings {
         Self {
             steam_path: home.join("Library/Application Support/Steam"),
             data_path: home.join("Library/Application Support/Catleap"),
+            wine_version: None,
+            gptk_version: None,
+            gptk_skipped: false,
         }
     }
 }
@@ -74,4 +83,40 @@ pub struct SteamApp {
     pub name: String,
     pub install_dir: String,
     pub size_on_disk: Option<u64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_default_has_no_versions() {
+        let s = Settings::default();
+        assert_eq!(s.wine_version, None);
+        assert_eq!(s.gptk_version, None);
+        assert!(!s.gptk_skipped);
+    }
+
+    #[test]
+    fn settings_round_trip_with_versions() {
+        let mut s = Settings::default();
+        s.wine_version = Some("1.0.0".to_string());
+        s.gptk_version = Some("3.0".to_string());
+        s.gptk_skipped = true;
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.wine_version, Some("1.0.0".to_string()));
+        assert_eq!(back.gptk_version, Some("3.0".to_string()));
+        assert!(back.gptk_skipped);
+    }
+
+    #[test]
+    fn settings_old_json_loads_with_defaults() {
+        // Old config files don't have the new fields — must still deserialize.
+        let old = r#"{"steam_path":"/tmp/steam","data_path":"/tmp/data"}"#;
+        let s: Settings = serde_json::from_str(old).unwrap();
+        assert_eq!(s.wine_version, None);
+        assert_eq!(s.gptk_version, None);
+        assert!(!s.gptk_skipped);
+    }
 }

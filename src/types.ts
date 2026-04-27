@@ -16,11 +16,30 @@ export interface Game {
 export interface Settings {
   steam_path: string;
   data_path: string;
+  wine_version: string | null;
+  gptk_version: string | null;
+  gptk_skipped: boolean;
 }
 
 export interface WineStatus {
   installed: boolean;
   variant: string;
   path: string;
-  homebrew_available: boolean;
+  gptk_libs_installed: boolean;
 }
+
+export type WineInstallPhase =
+  | { kind: "checking_space" }
+  | { kind: "downloading"; bytes_done: number; bytes_total: number }
+  | { kind: "verifying" }
+  | { kind: "extracting" }
+  | { kind: "codesigning" }
+  | { kind: "done" }
+  | { kind: "failed"; error: string };
+
+export type GptkImportPhase =
+  | { kind: "waiting" }
+  | { kind: "found"; version: string }
+  | { kind: "copying"; percent: number }
+  | { kind: "done"; version: string }
+  | { kind: "failed"; error: string };
