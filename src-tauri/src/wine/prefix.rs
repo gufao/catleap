@@ -117,6 +117,12 @@ pub fn build_launch_env(
         env.insert("PATH".to_string(), new_path);
     }
 
+    // GPTK env vars assume `wine_binary` is at `<wine_root>/bin/wine64` —
+    // true for our bundled Wine and for CrossOver. WINEDLLPATH and the
+    // D3DMetal library lookup are silently skipped if the layout differs.
+    // In practice gptk_lib_path is only populated when the user has
+    // imported D3DMetal libs into our data dir, which always pairs with
+    // bundled Wine, so the invariant holds today.
     if let Some(gptk) = gptk_lib_path {
         let gptk_str = gptk.to_string_lossy().to_string();
         env.insert(
@@ -257,5 +263,20 @@ mod tests {
         let env = build_launch_env(&wine_binary, &prefix_path, None, None);
         assert!(env.get("DYLD_FALLBACK_LIBRARY_PATH").is_none());
         assert!(env.get("WINEESYNC").is_none());
+    }
+
+    #[test]
+    fn build_launch_env_compat_overrides_gptk_esync() {
+        let wine_binary = PathBuf::from("/tmp/data/wine/bin/wine64");
+        let prefix_path = PathBuf::from("/tmp/data/prefixes/steam_123");
+        let gptk = PathBuf::from("/tmp/data/gptk/lib");
+        let compat = make_compat_entry(vec![], vec![("WINEESYNC", "0")]);
+
+        let env = build_launch_env(&wine_binary, &prefix_path, Some(&compat), Some(&gptk));
+
+        // GPTK sets WINEESYNC=1, compat must win with 0
+        assert_eq!(env.get("WINEESYNC").unwrap(), "0");
+        // Other GPTK vars still present
+        assert_eq!(env.get("WINEMSYNC").unwrap(), "1");
     }
 }
