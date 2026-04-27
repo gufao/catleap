@@ -1,4 +1,5 @@
 pub mod bundled;
+pub mod gptk_import;
 pub mod installer;
 pub mod prefix;
 pub mod runner;
