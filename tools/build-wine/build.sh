@@ -148,9 +148,22 @@ export LDFLAGS="$LDFLAGS_EXTRA"
 # 10.14 support but should still tolerate 10.15.
 export MACOSX_DEPLOYMENT_TARGET=10.15
 
-# The ld in macOS 15+ Xcode crashes with Abort trap: 6 when targeting 10.x.
-# Pin to the older MacOSX14 SDK that ships with the macos-15 runner's
-# CommandLineTools — its linker tooling still handles legacy targets.
+# The ld in macOS 15+ Xcode crashes with Abort trap: 6 when invoked by
+# Apple's 2019-era clang-8 (it passes argument flavours the new linker
+# rejects). Xcode 15+ ships ld_classic, the legacy linker that still
+# accepts those flags. Shim it as `ld` on PATH so clang finds it first.
+LD_CLASSIC="$(xcrun -f ld_classic 2>/dev/null || true)"
+if [[ -n "$LD_CLASSIC" && -x "$LD_CLASSIC" ]]; then
+  echo "==> Found ld_classic at $LD_CLASSIC; shimming as ld on PATH"
+  mkdir -p "$WORK_DIR/bin-shim"
+  ln -sf "$LD_CLASSIC" "$WORK_DIR/bin-shim/ld"
+  export PATH="$WORK_DIR/bin-shim:$PATH"
+else
+  echo "WARNING: ld_classic not found via xcrun; build may fail" >&2
+fi
+
+# Pin to MacOSX14 SDK if available — it has system framework versions
+# that match our 10.15 deployment target better than the macOS 15.5 SDK.
 for candidate in \
   /Library/Developer/CommandLineTools/SDKs/MacOSX14.sdk \
   /Library/Developer/CommandLineTools/SDKs/MacOSX14.5.sdk; do
@@ -160,9 +173,6 @@ for candidate in \
     break
   fi
 done
-if [[ -z "${SDKROOT:-}" ]]; then
-  echo "WARNING: no MacOSX14 SDK found; falling back to default" >&2
-fi
 export GSTREAMER_CFLAGS="-I$("$BREW" --prefix gstreamer)/include/gstreamer-1.0 -I$("$BREW" --prefix glib)/include/glib-2.0 -I$("$BREW" --prefix glib)/lib/glib-2.0/include"
 export GSTREAMER_LIBS="-L$("$BREW" --prefix gstreamer)/lib -lglib-2.0 -lgmodule-2.0 -lgstreamer-1.0 -lgstaudio-1.0 -lgstvideo-1.0 -lgstgl-1.0 -lgobject-2.0"
 
