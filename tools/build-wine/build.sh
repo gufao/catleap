@@ -142,7 +142,10 @@ done
 export CFLAGS="$CFLAGS_EXTRA"
 export CXXFLAGS="$CFLAGS_EXTRA"
 export LDFLAGS="$LDFLAGS_EXTRA"
-export MACOSX_DEPLOYMENT_TARGET=10.14
+# Apple's formula uses 10.14, but newer Xcode SDKs (15+) no longer support
+# linking against that target, so configure's basic compiler test fails.
+# 11.0 is the lowest target the macOS 15 SDK consistently supports.
+export MACOSX_DEPLOYMENT_TARGET=11.0
 export GSTREAMER_CFLAGS="-I$("$BREW" --prefix gstreamer)/include/gstreamer-1.0 -I$("$BREW" --prefix glib)/include/glib-2.0 -I$("$BREW" --prefix glib)/lib/glib-2.0/include"
 export GSTREAMER_LIBS="-L$("$BREW" --prefix gstreamer)/lib -lglib-2.0 -lgmodule-2.0 -lgstreamer-1.0 -lgstaudio-1.0 -lgstvideo-1.0 -lgstgl-1.0 -lgobject-2.0"
 

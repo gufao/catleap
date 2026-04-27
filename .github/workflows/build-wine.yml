@@ -67,6 +67,19 @@ jobs:
         run: |
           tools/build-wine/build.sh
 
+      - name: Dump config.log on failure
+        if: failure()
+        run: |
+          for log in \
+            tools/build-wine/build/wine64-build/config.log \
+            tools/build-wine/build/wine32-build/config.log; do
+            if [[ -f "$log" ]]; then
+              echo "===== $log (last 200 lines) ====="
+              tail -n 200 "$log"
+              echo
+            fi
+          done
+
       - name: Capture artifact metadata
         id: artifact
         run: |
