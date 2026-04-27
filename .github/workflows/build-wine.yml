@@ -61,6 +61,29 @@ jobs:
           echo "uname -m: ${ARCH}"
           /usr/local/bin/brew --version
 
+      - name: Probe Xcode/SDK environment
+        run: |
+          echo "==> /Applications/Xcode*.app"
+          ls -d /Applications/Xcode*.app 2>/dev/null || echo "(none)"
+          echo
+          echo "==> xcode-select -p"
+          xcode-select -p
+          echo
+          echo "==> xcrun --show-sdk-path"
+          xcrun --show-sdk-path
+          echo
+          echo "==> xcrun --show-sdk-version"
+          xcrun --show-sdk-version
+          echo
+          echo "==> xcodebuild -showsdks (macOS only)"
+          xcodebuild -showsdks 2>&1 | grep -i macos || true
+          echo
+          echo "==> Available SDKs in CommandLineTools"
+          ls /Library/Developer/CommandLineTools/SDKs/ 2>/dev/null || echo "(no CLT SDKs)"
+          echo
+          echo "==> /usr/bin/clang --version"
+          /usr/bin/clang --version
+
       - name: Run build pipeline
         env:
           VERSION: ${{ steps.ver.outputs.version }}
