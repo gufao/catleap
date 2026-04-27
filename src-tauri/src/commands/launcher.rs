@@ -60,6 +60,9 @@ pub fn get_running_games(state: State<AppState>) -> Vec<String> {
 /// Check if Wine/GPTK is installed and return status info
 #[tauri::command]
 pub fn check_wine_status(state: State<AppState>) -> WineStatus {
-    let data_path = state.settings.lock().unwrap().data_path.clone();
-    bundled::check_wine_status(&data_path)
+    let (data_path, installed_version) = {
+        let s = state.settings.lock().unwrap();
+        (s.data_path.clone(), s.wine_version.clone())
+    };
+    bundled::check_wine_status(&data_path, installed_version)
 }

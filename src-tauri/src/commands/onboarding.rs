@@ -82,14 +82,21 @@ pub fn start_gptk_watch(window: Window, state: State<'_, AppState>) -> Result<()
             match gptk_import::copy_libs(&info, &data_path) {
                 Ok(_) => {
                     if let Some(state) = app.try_state::<AppState>() {
-                        let snapshot = {
-                            let mut s = state.settings.lock().unwrap();
-                            s.gptk_version = Some(info.version.clone());
-                            s.gptk_skipped = false;
-                            s.clone()
+                        let snapshot = match state.settings.lock() {
+                            Ok(mut s) => {
+                                s.gptk_version = Some(info.version.clone());
+                                s.gptk_skipped = false;
+                                Some(s.clone())
+                            }
+                            Err(e) => {
+                                log::error!("Settings mutex poisoned, skipping persist: {e}");
+                                None
+                            }
                         };
-                        if let Err(e) = crate::commands::settings::save_settings_to_disk(&snapshot) {
-                            log::error!("Failed to persist gptk_version: {e}");
+                        if let Some(snap) = snapshot {
+                            if let Err(e) = crate::commands::settings::save_settings_to_disk(&snap) {
+                                log::error!("Failed to persist gptk_version: {e}");
+                            }
                         }
                     }
                     let _ = win.emit(

@@ -26,6 +26,8 @@ export interface WineStatus {
   variant: string;
   path: string;
   gptk_libs_installed: boolean;
+  installed_version: string | null;
+  expected_version: string;
 }
 
 export type WineInstallPhase =

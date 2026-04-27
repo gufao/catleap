@@ -9,6 +9,8 @@ pub struct WineStatus {
     pub variant: String,
     pub path: String,
     pub gptk_libs_installed: bool,
+    pub installed_version: Option<String>,
+    pub expected_version: String,
 }
 
 /// Path to the imported D3DMetal libraries, if present.
@@ -18,7 +20,7 @@ pub fn gptk_lib_path(data_path: &Path) -> Option<PathBuf> {
 }
 
 /// Check which Wine variant is available on the system.
-pub fn check_wine_status(data_path: &Path) -> WineStatus {
+pub fn check_wine_status(data_path: &Path, installed_version: Option<String>) -> WineStatus {
     let gptk_present = gptk_lib_path(data_path).is_some();
     match find_wine_binary(data_path) {
         Ok(path) => WineStatus {
@@ -26,12 +28,16 @@ pub fn check_wine_status(data_path: &Path) -> WineStatus {
             variant: detect_variant(&path, data_path, gptk_present),
             path: path.to_string_lossy().to_string(),
             gptk_libs_installed: gptk_present,
+            installed_version: installed_version.clone(),
+            expected_version: crate::wine::installer::WINE_EXPECTED_VERSION.to_string(),
         },
         Err(_) => WineStatus {
             installed: false,
             variant: "none".to_string(),
             path: String::new(),
             gptk_libs_installed: gptk_present,
+            installed_version,
+            expected_version: crate::wine::installer::WINE_EXPECTED_VERSION.to_string(),
         },
     }
 }
@@ -114,7 +120,7 @@ mod tests {
         make_wine_at(tmp.path());
         let fw = tmp.path().join("gptk/lib/D3DMetal.framework");
         std::fs::create_dir_all(&fw).unwrap();
-        let status = check_wine_status(tmp.path());
+        let status = check_wine_status(tmp.path(), None);
         assert!(status.installed);
         assert_eq!(status.variant, "catleap-gptk");
         assert!(status.gptk_libs_installed);
@@ -124,7 +130,7 @@ mod tests {
     fn check_wine_status_without_gptk_libs() {
         let tmp = TempDir::new().unwrap();
         make_wine_at(tmp.path());
-        let status = check_wine_status(tmp.path());
+        let status = check_wine_status(tmp.path(), None);
         assert!(status.installed);
         assert_eq!(status.variant, "catleap-wine");
         assert!(!status.gptk_libs_installed);
@@ -133,7 +139,7 @@ mod tests {
     #[test]
     fn check_wine_status_uninstalled() {
         let tmp = TempDir::new().unwrap();
-        let status = check_wine_status(tmp.path());
+        let status = check_wine_status(tmp.path(), None);
         assert!(!status.installed);
         assert_eq!(status.variant, "none");
         assert!(!status.gptk_libs_installed);

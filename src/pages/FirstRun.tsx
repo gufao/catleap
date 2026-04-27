@@ -26,23 +26,35 @@ export function FirstRun({ onComplete }: FirstRunProps) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [winePhase, setWinePhase] = useState<WineInstallPhase | null>(null);
   const [gptkPhase, setGptkPhase] = useState<GptkImportPhase | null>(null);
-  const [foundVolume, setFoundVolume] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Resume mid-onboarding based on persisted settings.
   useEffect(() => {
-    getSettings().then((s) => {
-      setSettings(s);
-      if (s.wine_version && (s.gptk_version || s.gptk_skipped)) {
-        setStep("scan");
-      } else if (s.wine_version) {
-        setStep("gptk");
-      } else {
-        setStep("welcome");
-      }
-    });
+    getSettings()
+      .then((s) => {
+        setSettings(s);
+        if (s.wine_version && (s.gptk_version || s.gptk_skipped)) {
+          setStep("scan");
+        } else if (s.wine_version) {
+          setStep("gptk");
+        } else {
+          setStep("welcome");
+        }
+      })
+      .catch((e) => {
+        setError(`Failed to load settings: ${e}`);
+        // Render the welcome step as a safe default so the user
+        // is not stuck on "Loading..." forever.
+        setSettings({
+          steam_path: "",
+          data_path: "",
+          wine_version: null,
+          gptk_version: null,
+          gptk_skipped: false,
+        });
+      });
   }, []);
 
   useTauriEvent<WineInstallPhase>(
@@ -59,10 +71,8 @@ export function FirstRun({ onComplete }: FirstRunProps) {
     "gptk-import-progress",
     (p) => {
       setGptkPhase(p);
-      if (p.kind === "found") setFoundVolume(p.version);
       if (p.kind === "done") {
         setStep("scan");
-        setFoundVolume(null);
       }
       if (p.kind === "failed") setError(p.error);
     },
@@ -147,9 +157,9 @@ export function FirstRun({ onComplete }: FirstRunProps) {
       {step === "gptk" && (
         <GptkStep
           phase={gptkPhase}
-          foundVolume={foundVolume}
           onStart={startGptk}
           onSkip={handleSkipGptk}
+          onRetry={startGptk}
         />
       )}
 
@@ -275,14 +285,14 @@ function WineStep({
 
 function GptkStep({
   phase,
-  foundVolume: _foundVolume,
   onStart,
   onSkip,
+  onRetry,
 }: {
   phase: GptkImportPhase | null;
-  foundVolume: string | null;
   onStart: () => void;
   onSkip: () => void;
+  onRetry: () => void;
 }) {
   if (!phase) {
     return (
@@ -327,7 +337,14 @@ function GptkStep({
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Importing GPTK</h2>
       <p className="text-sm text-gray-600 mb-6">{label}</p>
-      {/* TODO(Task 13): surface foundVolume detail/eject button here when copy is in progress */}
+      {phase.kind === "failed" && (
+        <button
+          onClick={onRetry}
+          className="w-full px-5 py-3 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-700 mb-3"
+        >
+          Try again
+        </button>
+      )}
       <button
         onClick={onSkip}
         className="w-full px-5 py-3 rounded-xl bg-transparent text-gray-500 font-medium text-sm hover:bg-gray-100"
