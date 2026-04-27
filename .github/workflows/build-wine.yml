@@ -74,11 +74,25 @@ jobs:
             tools/build-wine/build/wine64-build/config.log \
             tools/build-wine/build/wine32-build/config.log; do
             if [[ -f "$log" ]]; then
-              echo "===== $log (last 200 lines) ====="
-              tail -n 200 "$log"
+              echo "===== $log : error/failure context ====="
+              grep -nE "error:|warning:|fatal error|ld: |conftest|undefined symbol|cannot find|failed program" "$log" || true
+              echo
+              echo "===== $log : first 250 lines ====="
+              head -n 250 "$log"
               echo
             fi
           done
+
+      - name: Upload config.log as artifact on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: configure-logs
+          path: |
+            tools/build-wine/build/wine64-build/config.log
+            tools/build-wine/build/wine32-build/config.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Capture artifact metadata
         id: artifact
