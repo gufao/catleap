@@ -25,7 +25,11 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15-intel
+    # macos-14 (Intel x86_64) ships Xcode 15 alongside 16, which still has
+    # ld_classic and SDKs that the Apple GPTK formula expects.
+    # macos-15-intel only has Xcode 16+ (no ld_classic), where Apple's
+    # 2019-era clang-8 fails to link. macos-14 is deprecated Nov 2026.
+    runs-on: macos-14
     timeout-minutes: 180
 
     steps:
