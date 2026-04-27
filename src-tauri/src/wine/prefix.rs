@@ -100,6 +100,7 @@ pub fn build_launch_env(
     wine_binary: &Path,
     prefix_path: &Path,
     compat: Option<&CompatEntry>,
+    gptk_lib_path: Option<&Path>,
 ) -> HashMap<String, String> {
     let mut env: HashMap<String, String> = HashMap::new();
 
@@ -114,6 +115,28 @@ pub fn build_launch_env(
         let current_path = std::env::var("PATH").unwrap_or_default();
         let new_path = format!("{}:{}", bin_dir.display(), current_path);
         env.insert("PATH".to_string(), new_path);
+    }
+
+    if let Some(gptk) = gptk_lib_path {
+        let gptk_str = gptk.to_string_lossy().to_string();
+        env.insert(
+            "DYLD_FALLBACK_LIBRARY_PATH".to_string(),
+            format!("{}:{}/external", gptk_str, gptk_str),
+        );
+        env.insert("WINEESYNC".to_string(), "1".to_string());
+        env.insert("WINEMSYNC".to_string(), "1".to_string());
+        env.insert("ROSETTA_ADVERTISE_AVX".to_string(), "1".to_string());
+
+        // <wine_root>/lib/wine/x86_64-windows for compiled-in PE DLLs
+        if let Some(bin_dir) = wine_binary.parent() {
+            if let Some(wine_root) = bin_dir.parent() {
+                let dll_path = wine_root.join("lib/wine/x86_64-windows");
+                env.insert(
+                    "WINEDLLPATH".to_string(),
+                    dll_path.to_string_lossy().to_string(),
+                );
+            }
+        }
     }
 
     if let Some(entry) = compat {
@@ -184,7 +207,7 @@ mod tests {
     fn test_build_launch_env_without_compat() {
         let wine_binary = PathBuf::from("/opt/homebrew/bin/wine64");
         let prefix_path = PathBuf::from("/tmp/catleap_data/prefixes/steam_123");
-        let env = build_launch_env(&wine_binary, &prefix_path, None);
+        let env = build_launch_env(&wine_binary, &prefix_path, None, None);
 
         assert_eq!(
             env.get("WINEPREFIX").unwrap(),
@@ -201,11 +224,38 @@ mod tests {
         let prefix_path = PathBuf::from("/tmp/catleap_data/prefixes/steam_123");
         let compat = make_compat_entry(vec![], vec![("DXVK_HUD", "1"), ("WINEDEBUG", "-all")]);
 
-        let env = build_launch_env(&wine_binary, &prefix_path, Some(&compat));
+        let env = build_launch_env(&wine_binary, &prefix_path, Some(&compat), None);
 
         assert_eq!(env.get("WINEPREFIX").unwrap(), "/tmp/catleap_data/prefixes/steam_123");
         assert_eq!(env.get("WINEARCH").unwrap(), "win64");
         assert_eq!(env.get("DXVK_HUD").unwrap(), "1");
         assert_eq!(env.get("WINEDEBUG").unwrap(), "-all");
+    }
+
+    #[test]
+    fn build_launch_env_with_gptk_sets_d3dmetal_vars() {
+        let wine_binary = PathBuf::from("/tmp/data/wine/bin/wine64");
+        let prefix_path = PathBuf::from("/tmp/data/prefixes/steam_123");
+        let gptk = PathBuf::from("/tmp/data/gptk/lib");
+
+        let env = build_launch_env(&wine_binary, &prefix_path, None, Some(&gptk));
+
+        assert_eq!(
+            env.get("DYLD_FALLBACK_LIBRARY_PATH").unwrap(),
+            "/tmp/data/gptk/lib:/tmp/data/gptk/lib/external"
+        );
+        assert_eq!(env.get("WINEESYNC").unwrap(), "1");
+        assert_eq!(env.get("WINEMSYNC").unwrap(), "1");
+        assert_eq!(env.get("ROSETTA_ADVERTISE_AVX").unwrap(), "1");
+        assert!(env.get("WINEDLLPATH").unwrap().contains("/tmp/data/wine/lib/wine/x86_64-windows"));
+    }
+
+    #[test]
+    fn build_launch_env_without_gptk_omits_d3dmetal_vars() {
+        let wine_binary = PathBuf::from("/tmp/wine64");
+        let prefix_path = PathBuf::from("/tmp/prefix");
+        let env = build_launch_env(&wine_binary, &prefix_path, None, None);
+        assert!(env.get("DYLD_FALLBACK_LIBRARY_PATH").is_none());
+        assert!(env.get("WINEESYNC").is_none());
     }
 }

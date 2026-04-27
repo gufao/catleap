@@ -80,7 +80,8 @@ pub fn launch_game(
     }
 
     // Build environment
-    let env_map = build_launch_env(&wine_binary, &prefix_path, compat);
+    let gptk_lib = crate::wine::bundled::gptk_lib_path(data_path);
+    let env_map = build_launch_env(&wine_binary, &prefix_path, compat, gptk_lib.as_deref());
 
     // Set up log file
     let logs_dir = data_path.join("logs");
