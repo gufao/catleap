@@ -32,6 +32,35 @@ fn load_settings_from_disk() -> Settings {
     default
 }
 
+fn setup_steam_watcher(app_handle: tauri::AppHandle, steam_path: std::path::PathBuf) {
+    let watch_path = steam_path.join("steamapps");
+    std::thread::spawn(move || {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut watcher = match notify::recommended_watcher(move |res| {
+            let _ = tx.send(res);
+        }) {
+            Ok(w) => w,
+            Err(e) => {
+                log::warn!("Failed to create Steam watcher: {e}");
+                return;
+            }
+        };
+        if let Err(e) = watcher.watch(&watch_path, RecursiveMode::NonRecursive) {
+            log::warn!("Failed to watch {:?}: {e}", watch_path);
+            return;
+        }
+        for res in rx {
+            match res {
+                Ok(event) if matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_)) => {
+                    let _ = app_handle.emit("steam-library-changed", ());
+                }
+                Ok(_) => {}
+                Err(e) => log::warn!("Steam watcher error: {e}"),
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let compat_db = database::load_embedded_database()
@@ -54,44 +83,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
             let state: tauri::State<AppState> = app.state();
             let steam_path = state.settings.lock().unwrap().steam_path.clone();
-            let watch_path = steam_path.join("steamapps");
-
-            std::thread::spawn(move || {
-                let (tx, rx) = std::sync::mpsc::channel();
-
-                let mut watcher = match notify::recommended_watcher(move |res| {
-                    let _ = tx.send(res);
-                }) {
-                    Ok(w) => w,
-                    Err(e) => {
-                        log::warn!("Failed to create file watcher: {}", e);
-                        return;
-                    }
-                };
-
-                if let Err(e) = watcher.watch(&watch_path, RecursiveMode::NonRecursive) {
-                    log::warn!("Failed to watch {:?}: {}", watch_path, e);
-                    return;
-                }
-
-                for res in rx {
-                    match res {
-                        Ok(event) => {
-                            let relevant = matches!(
-                                event.kind,
-                                EventKind::Create(_) | EventKind::Remove(_)
-                            );
-                            if relevant {
-                                let _ = app_handle.emit("steam-library-changed", ());
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("Watch error: {}", e);
-                        }
-                    }
-                }
-            });
-
+            setup_steam_watcher(app_handle, steam_path);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
