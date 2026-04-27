@@ -1,7 +1,7 @@
 // Wine game runner — implementation in Task 11
 use crate::models::{CompatDatabase, Game};
 use std::path::Path;
-use std::process::Child;
+use std::process::{Child, Stdio};
 
 /// Find the most likely main executable in a directory.
 /// Returns the .exe with the shortest filename (stem).
@@ -51,7 +51,6 @@ pub fn launch_game(
         build_launch_env, configure_prefix, create_prefix, get_prefix_path, prefix_exists,
     };
     use std::fs;
-    use std::process::Stdio;
 
     // Locate Wine binary
     let wine_binary = find_wine_binary(data_path)?;
