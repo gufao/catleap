@@ -40,6 +40,6 @@ export type WineInstallPhase =
 export type GptkImportPhase =
   | { kind: "waiting" }
   | { kind: "found"; version: string }
-  | { kind: "copying"; percent: number }
+  | { kind: "copying" }
   | { kind: "done"; version: string }
   | { kind: "failed"; error: string };

@@ -1,6 +1,9 @@
+use notify::{EventKind, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct GptkInfo {
@@ -14,7 +17,7 @@ pub struct GptkInfo {
 pub enum GptkPhase {
     Waiting,
     Found { version: String },
-    Copying { percent: u8 },
+    Copying,
     Done { version: String },
     Failed { error: String },
 }
@@ -133,10 +136,6 @@ pub fn copy_libs(info: &GptkInfo, data_path: &Path) -> Result<(), String> {
 
     Ok(())
 }
-
-use notify::{EventKind, RecursiveMode, Watcher};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 const VOLUMES_ROOT: &str = "/Volumes";
 

@@ -56,6 +56,11 @@ export function cancelWineInstall(): Promise<void> {
   return invoke<void>("cancel_wine_install");
 }
 
+/**
+ * Begin watching `/Volumes` for an Apple GPTK DMG. If a watch is already
+ * in progress, this is a no-op and resolves successfully. Listen for
+ * `gptk-import-progress` events to track the actual state.
+ */
 export function startGptkWatch(): Promise<void> {
   return invoke<void>("start_gptk_watch");
 }

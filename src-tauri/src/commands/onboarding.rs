@@ -1,4 +1,5 @@
 use crate::commands::games::AppState;
+use crate::wine::gptk_import::{self, GptkPhase};
 use crate::wine::installer::{self, InstallPhase, WINE_EXPECTED_VERSION};
 use std::sync::atomic::Ordering;
 use tauri::{Emitter, Manager, State, Window};
@@ -58,12 +59,9 @@ pub fn cancel_wine_install(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
-use crate::wine::gptk_import::{self, GptkPhase};
-use std::sync::atomic::Ordering as Ord2;
-
 #[tauri::command]
 pub fn start_gptk_watch(window: Window, state: State<'_, AppState>) -> Result<(), String> {
-    if state.gptk_watching.swap(true, Ord2::Relaxed) {
+    if state.gptk_watching.swap(true, Ordering::Relaxed) {
         return Ok(()); // already watching
     }
     let running = state.gptk_watching.clone();
@@ -80,10 +78,7 @@ pub fn start_gptk_watch(window: Window, state: State<'_, AppState>) -> Result<()
                     version: info.version.clone(),
                 },
             );
-            let _ = win.emit(
-                "gptk-import-progress",
-                GptkPhase::Copying { percent: 0 },
-            );
+            let _ = win.emit("gptk-import-progress", GptkPhase::Copying);
             match gptk_import::copy_libs(&info, &data_path) {
                 Ok(_) => {
                     if let Some(state) = app.try_state::<AppState>() {
@@ -109,7 +104,6 @@ pub fn start_gptk_watch(window: Window, state: State<'_, AppState>) -> Result<()
                     );
                 }
             }
-            running.store(false, Ord2::Relaxed);
         });
         if let Err(e) = result {
             let _ = win.emit(
@@ -117,14 +111,14 @@ pub fn start_gptk_watch(window: Window, state: State<'_, AppState>) -> Result<()
                 GptkPhase::Failed { error: e },
             );
         }
-        running.store(false, Ord2::Relaxed);
+        running.store(false, Ordering::Relaxed);
     });
     Ok(())
 }
 
 #[tauri::command]
 pub fn stop_gptk_watch(state: State<'_, AppState>) -> Result<(), String> {
-    state.gptk_watching.store(false, Ord2::Relaxed);
+    state.gptk_watching.store(false, Ordering::Relaxed);
     Ok(())
 }
 
@@ -141,5 +135,8 @@ pub fn skip_gptk(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn eject_gptk_volume(volume_path: String) -> Result<(), String> {
+    if !volume_path.starts_with("/Volumes/") {
+        return Err(format!("invalid volume path: {volume_path}"));
+    }
     gptk_import::eject(std::path::Path::new(&volume_path))
 }
