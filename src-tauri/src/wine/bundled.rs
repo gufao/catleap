@@ -68,7 +68,7 @@ pub fn find_wine_binary(data_path: &Path) -> Result<PathBuf, String> {
     Err("Wine not found. Catleap will download it during onboarding.".to_string())
 }
 
-pub fn detect_variant(path: &Path, data_path: &Path, gptk_present: bool) -> String {
+pub(crate) fn detect_variant(path: &Path, data_path: &Path, gptk_present: bool) -> String {
     let bundled_root = data_path.join("wine");
     if path.starts_with(&bundled_root) {
         return if gptk_present { "catleap-gptk" } else { "catleap-wine" }.to_string();
