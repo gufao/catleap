@@ -25,7 +25,7 @@
 
 **Modify:**
 - `src-tauri/Cargo.toml` — add deps
-- `src-tauri/src/models.rs` — `Settings` gains `wine_version`, `gptk_version`, `gptk_skipped`; `OnboardingState` enum
+- `src-tauri/src/models.rs` — `Settings` gains `wine_version`, `gptk_version`, `gptk_skipped`
 - `src-tauri/src/wine/mod.rs` — re-export new modules; `wine_command` helper
 - `src-tauri/src/wine/bundled.rs` — drop `/opt/homebrew/...` GPTK paths; new `WineStatus` shape; new tests
 - `src-tauri/src/wine/prefix.rs` — `build_launch_env` accepts `gptk_lib_path`; tests
@@ -45,9 +45,10 @@
 
 **Files:**
 - Modify: `src-tauri/src/models.rs`
-- Modify: `src-tauri/src/lib.rs:20-32`
 - Modify: `src/types.ts`
 - Test: `src-tauri/src/models.rs` (`#[cfg(test)] mod tests`)
+
+> Note: no change to `lib.rs` is needed — the existing `load_settings_from_disk` path picks up new fields transparently via `#[serde(default)]`.
 
 - [ ] **Step 1: Write the failing test for Settings default + serialisation**
 
