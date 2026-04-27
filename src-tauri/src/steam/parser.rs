@@ -254,7 +254,7 @@ pub fn parse_library_folders(content: &str) -> Result<Vec<String>, String> {
 
     let mut paths = Vec::new();
 
-    for (_key, value) in &map {
+    for value in map.values() {
         if let VdfValue::Map(entry) = value {
             if let Some(VdfValue::String(path)) = entry.get("path") {
                 paths.push(path.clone());
