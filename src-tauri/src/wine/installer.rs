@@ -85,7 +85,9 @@ pub fn extract_tar_xz(archive: &Path, dest: &Path) -> Result<(), String> {
 pub fn clear_quarantine_and_sign(wine_root: &Path) -> Result<(), String> {
     use std::process::Command;
 
-    Command::new("/usr/bin/xattr")
+    // xattr exits non-zero when the attribute is already absent; ignore the
+    // exit code, only fail if we can't spawn the process at all.
+    let _ = Command::new("/usr/bin/xattr")
         .args(["-dr", "com.apple.quarantine"])
         .arg(wine_root)
         .status()
@@ -102,7 +104,13 @@ pub fn clear_quarantine_and_sign(wine_root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Atomically replace `<data_path>/wine` with the contents of `staging`.
+/// Replace `<data_path>/wine` with the contents of `staging` via `rename(2)`.
+///
+/// Both `staging` and `target` MUST reside on the same filesystem; otherwise
+/// the OS returns EXDEV ("cross-device link") and this function fails. The
+/// individual renames (target→.old, staging→target) are atomic; the sequence
+/// as a whole is not — a crash between them leaves a `.old` directory behind
+/// that a subsequent run cleans up. Caller must serialise concurrent calls.
 pub fn promote_staging(staging: &Path, target: &Path) -> Result<(), String> {
     if target.exists() {
         let backup = target.with_extension("old");
