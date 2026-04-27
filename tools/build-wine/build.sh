@@ -57,7 +57,32 @@ fi
 
 # Apple's GPTK formula has its own compiler. Use it.
 "$BREW" tap apple/apple https://github.com/apple/homebrew-apple
-"$BREW" install apple/apple/game-porting-toolkit-compiler
+
+# Patch the compiler formula to work with modern CMake. The bundled LLVM
+# source uses cmake_minimum_required(VERSION < 3.5), which CMake 4+ rejects.
+# Injecting CMAKE_POLICY_VERSION_MINIMUM=3.5 tells CMake to keep the legacy
+# behaviour for this build only. Idempotent — skip if already patched.
+COMPILER_FORMULA="$("$BREW" --repository)/Library/Taps/apple/homebrew-apple/Formula/game-porting-toolkit-compiler.rb"
+if [[ ! -f "$COMPILER_FORMULA" ]]; then
+  echo "ERROR: Compiler formula not found at $COMPILER_FORMULA" >&2
+  exit 1
+fi
+if ! grep -q 'CMAKE_POLICY_VERSION_MINIMUM' "$COMPILER_FORMULA"; then
+  echo "==> Patching $COMPILER_FORMULA for CMake 4 compatibility"
+  /usr/bin/sed -i.bak \
+    's|"-DCMAKE_INSTALL_PREFIX=#{prefix}",|"-DCMAKE_INSTALL_PREFIX=#{prefix}",\
+                      "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",|' \
+    "$COMPILER_FORMULA"
+  rm -f "${COMPILER_FORMULA}.bak"
+  # If the compiler is already installed without the patch, force reinstall.
+  if "$BREW" list game-porting-toolkit-compiler >/dev/null 2>&1; then
+    "$BREW" reinstall apple/apple/game-porting-toolkit-compiler
+  else
+    "$BREW" install apple/apple/game-porting-toolkit-compiler
+  fi
+else
+  "$BREW" install apple/apple/game-porting-toolkit-compiler
+fi
 
 GPTK_COMPILER="$("$BREW" --prefix game-porting-toolkit-compiler)"
 if [[ ! -x "${GPTK_COMPILER}/bin/clang" ]]; then
