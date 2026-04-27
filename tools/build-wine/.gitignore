@@ -1,0 +1,6 @@
+build/
+dist/
+*.tar.xz
+*.tar.gz
+*.sha256
+sources/
