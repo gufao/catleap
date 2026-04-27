@@ -147,6 +147,22 @@ export LDFLAGS="$LDFLAGS_EXTRA"
 # uses 10.14; we bump to 10.15 because newer Xcode SDKs may have dropped
 # 10.14 support but should still tolerate 10.15.
 export MACOSX_DEPLOYMENT_TARGET=10.15
+
+# The ld in macOS 15+ Xcode crashes with Abort trap: 6 when targeting 10.x.
+# Pin to the older MacOSX14 SDK that ships with the macos-15 runner's
+# CommandLineTools — its linker tooling still handles legacy targets.
+for candidate in \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX14.sdk \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX14.5.sdk; do
+  if [[ -d "$candidate" ]]; then
+    export SDKROOT="$candidate"
+    echo "==> Using SDKROOT=$SDKROOT"
+    break
+  fi
+done
+if [[ -z "${SDKROOT:-}" ]]; then
+  echo "WARNING: no MacOSX14 SDK found; falling back to default" >&2
+fi
 export GSTREAMER_CFLAGS="-I$("$BREW" --prefix gstreamer)/include/gstreamer-1.0 -I$("$BREW" --prefix glib)/include/glib-2.0 -I$("$BREW" --prefix glib)/lib/glib-2.0/include"
 export GSTREAMER_LIBS="-L$("$BREW" --prefix gstreamer)/lib -lglib-2.0 -lgmodule-2.0 -lgstreamer-1.0 -lgstaudio-1.0 -lgstvideo-1.0 -lgstgl-1.0 -lgobject-2.0"
 
