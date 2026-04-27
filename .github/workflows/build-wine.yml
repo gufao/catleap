@@ -1,0 +1,191 @@
+name: Build Wine
+
+# Builds wine-catleap-<version>.tar.xz from Apple's official GPTK Wine sources
+# on a native Intel x86_64 macOS runner, publishes a GitHub Release with the
+# tarball + SHA256, and opens a PR updating the installer constants.
+#
+# Triggers:
+#   - Push a tag like `wine-catleap-v1.0.0` → builds version 1.0.0
+#   - Manual dispatch via the Actions UI with a `version` input
+
+on:
+  push:
+    tags:
+      - "wine-catleap-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#wine-catleap-v}"
+          fi
+          if [[ -z "${VERSION}" ]]; then
+            echo "Could not resolve version from trigger" >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=wine-catleap-v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Intel runner
+        run: |
+          ARCH="$(uname -m)"
+          if [[ "${ARCH}" != "x86_64" ]]; then
+            echo "Expected x86_64 runner, got: ${ARCH}" >&2
+            exit 1
+          fi
+          if [[ ! -x /usr/local/bin/brew ]]; then
+            echo "Intel Homebrew not found at /usr/local/bin/brew" >&2
+            exit 1
+          fi
+          echo "uname -m: ${ARCH}"
+          /usr/local/bin/brew --version
+
+      - name: Run build pipeline
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          tools/build-wine/build.sh
+
+      - name: Capture artifact metadata
+        id: artifact
+        run: |
+          DIST=tools/build-wine/dist
+          TARBALL="${DIST}/wine-catleap-${{ steps.ver.outputs.version }}.tar.xz"
+          SHA_FILE="${TARBALL}.sha256"
+
+          if [[ ! -f "${TARBALL}" ]]; then
+            echo "Tarball missing: ${TARBALL}" >&2
+            exit 1
+          fi
+          if [[ ! -f "${SHA_FILE}" ]]; then
+            echo "SHA256 file missing: ${SHA_FILE}" >&2
+            exit 1
+          fi
+
+          SHA="$(cut -d' ' -f1 "${SHA_FILE}")"
+          SIZE_MB="$(du -m "${TARBALL}" | cut -f1)"
+
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
+          echo "sha_file=${SHA_FILE}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "size_mb=${SIZE_MB}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Build summary"
+            echo ""
+            echo "- Version: \`${{ steps.ver.outputs.version }}\`"
+            echo "- Tag:     \`${{ steps.ver.outputs.tag }}\`"
+            echo "- Size:    ${SIZE_MB} MB"
+            echo "- SHA256:  \`${SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Wine Catleap ${{ steps.ver.outputs.version }}
+          body: |
+            Wine binary for Catleap, compiled from Apple's official GPTK
+            Wine sources (CodeWeavers 22.1.1 + Apple's patch).
+
+            **Architecture:** x86_64 (run via Rosetta on Apple Silicon)
+            **SHA256:** `${{ steps.artifact.outputs.sha256 }}`
+
+            This artifact is consumed by Catleap's first-run installer.
+            The download URL and SHA256 are wired into
+            `src-tauri/src/wine/installer.rs`.
+          draft: false
+          prerelease: false
+          files: |
+            ${{ steps.artifact.outputs.tarball }}
+            ${{ steps.artifact.outputs.sha_file }}
+
+      - name: Update installer constants and open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          SHA: ${{ steps.artifact.outputs.sha256 }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="bot/wine-${VERSION}"
+          git checkout -b "${BRANCH}"
+
+          INSTALLER=src-tauri/src/wine/installer.rs
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/wine-catleap-${VERSION}.tar.xz"
+
+          # Rewrite the three constants in installer.rs. Each constant has a
+          # declaration line followed by an indented value line; awk reads the
+          # value line via getline so we never depend on string contents.
+          awk -v ver="${VERSION}" -v url="${URL}" -v sha="${SHA}" '
+            /^pub const WINE_EXPECTED_VERSION:/ {
+              print "pub const WINE_EXPECTED_VERSION: &str = \"" ver "\";"
+              next
+            }
+            /^pub const WINE_RELEASE_URL: &str =$/ {
+              print
+              getline
+              print "    \"" url "\";"
+              next
+            }
+            /^pub const WINE_EXPECTED_SHA256: &str =$/ {
+              print
+              getline
+              print "    \"" sha "\";"
+              next
+            }
+            { print }
+          ' "${INSTALLER}" > "${INSTALLER}.new"
+          mv "${INSTALLER}.new" "${INSTALLER}"
+
+          if git diff --quiet "${INSTALLER}"; then
+            echo "No changes to installer.rs — aborting" >&2
+            exit 1
+          fi
+
+          git add "${INSTALLER}"
+          git commit -m "chore(installer): wire release ${VERSION}
+
+          Auto-generated by .github/workflows/build-wine.yml after publishing
+          the wine-catleap-${VERSION} GitHub Release."
+
+          git push -u origin "${BRANCH}"
+
+          gh pr create \
+            --title "chore: wire wine-catleap-${VERSION} release" \
+            --body "Auto-generated PR after the \`${TAG}\` release was built and published.
+
+          Updates \`WINE_EXPECTED_VERSION\`, \`WINE_RELEASE_URL\`, and \`WINE_EXPECTED_SHA256\` in \`src-tauri/src/wine/installer.rs\`.
+
+          - Release: ${RELEASE_URL}
+          - SHA256: \`${SHA}\`
+
+          Merge to make first-run installer point at the new build." \
+            --head "${BRANCH}" \
+            --base main
