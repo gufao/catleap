@@ -31,6 +31,12 @@ fi
 
 BREW=/usr/local/bin/brew
 
+AVAIL_KB=$(df -k "$SCRIPT_DIR" | awk 'NR==2 {print $4}')
+if (( AVAIL_KB < 30000000 )); then
+  echo "ERROR: Need ~30 GB free at $SCRIPT_DIR. Available: $((AVAIL_KB / 1024 / 1024)) GB" >&2
+  exit 1
+fi
+
 # --- dependencies ---------------------------------------------------------
 echo "==> Installing build dependencies via Intel Homebrew"
 "$BREW" install \
@@ -43,7 +49,9 @@ echo "==> Installing build dependencies via Intel Homebrew"
 # headers/libs at build time; we are not redistributing gcenx artifacts.)
 if ! "$BREW" list openssl@1.1 >/dev/null 2>&1; then
   echo "==> openssl@1.1 missing, tapping gcenx/wine to obtain it"
-  "$BREW" tap gcenx/wine || true
+  if ! "$BREW" tap | grep -q '^gcenx/wine$'; then
+    "$BREW" tap gcenx/wine
+  fi
   "$BREW" install openssl@1.1
 fi
 
@@ -52,6 +60,11 @@ fi
 "$BREW" install apple/apple/game-porting-toolkit-compiler
 
 GPTK_COMPILER="$("$BREW" --prefix game-porting-toolkit-compiler)"
+if [[ ! -x "${GPTK_COMPILER}/bin/clang" ]]; then
+  echo "ERROR: GPTK compiler clang not found at ${GPTK_COMPILER}/bin/clang" >&2
+  echo "       The game-porting-toolkit-compiler install may be incomplete." >&2
+  exit 1
+fi
 
 # --- fetch + extract sources ---------------------------------------------
 mkdir -p "$WORK_DIR" "$DIST_DIR"
@@ -65,8 +78,8 @@ fi
 echo "==> Verifying source tarball"
 echo "$SOURCE_SHA256  $SOURCE_TARBALL" | shasum -a 256 -c -
 
-echo "==> Extracting wine/ subdir"
-rm -rf wine
+echo "==> Extracting wine/ subdir (clean rebuild)"
+rm -rf wine wine64-build wine32-build
 tar -xf "$SOURCE_TARBALL" --include='sources/wine/*' --strip-components=1
 
 # --- apply Apple's patch -------------------------------------------------
@@ -78,6 +91,11 @@ if [[ ! -f "$APPLE_FORMULA" ]]; then
 fi
 # Extract the patch from the formula (everything after __END__)
 awk '/^__END__$/{found=1; next} found' "$APPLE_FORMULA" > apple.patch
+if [[ ! -s apple.patch ]]; then
+  echo "ERROR: apple.patch is empty — Apple formula may no longer use __END__ heredoc." >&2
+  echo "       Inspect $APPLE_FORMULA and update the extraction logic." >&2
+  exit 1
+fi
 ( cd wine && patch -p1 < ../apple.patch )
 
 # --- configure + build ---------------------------------------------------
@@ -131,8 +149,13 @@ for d in "${PREFIX}"/lib/wine/x86_64-unix/*.so "${PREFIX}"/lib/wine/x86_32on64-u
   chmod 0444 "$d"
 done
 
-codesign --force --sign - "${PREFIX}/bin/wine64"
-codesign --force --sign - "${PREFIX}/bin/wineserver" || true
+echo "==> Ad-hoc signing all Mach-O binaries in bin/"
+for bin in "${PREFIX}"/bin/*; do
+  [[ -f "$bin" ]] || continue
+  if file "$bin" | grep -q "Mach-O"; then
+    codesign --force --sign - "$bin"
+  fi
+done
 
 # --- package -------------------------------------------------------------
 ARTIFACT="${DIST_DIR}/wine-catleap-${VERSION}.tar.xz"
