@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Sidebar } from "./components/Sidebar";
 import type { LibraryFilter, SourceFilter } from "./components/Sidebar";
@@ -15,9 +15,17 @@ const ONBOARDED_KEY = "catleap_onboarded";
 type Page = "library" | "settings" | "detail";
 
 function App() {
-  const [firstRun, setFirstRun] = useState(() => {
-    return localStorage.getItem(ONBOARDED_KEY) !== "true";
-  });
+  const [firstRun, setFirstRun] = useState(true);
+
+  useEffect(() => {
+    import("./lib/tauri").then(async ({ getSettings }) => {
+      const s = await getSettings();
+      const onboarded = localStorage.getItem(ONBOARDED_KEY) === "true";
+      if (onboarded && s.wine_version && (s.gptk_version || s.gptk_skipped)) {
+        setFirstRun(false);
+      }
+    });
+  }, []);
   const [page, setPage] = useState<Page>("library");
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
