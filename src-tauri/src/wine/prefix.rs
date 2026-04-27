@@ -1,7 +1,6 @@
 use crate::models::CompatEntry;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// Create a new Wine prefix by running `wineboot --init`.
 pub fn create_prefix(wine_binary: &Path, prefix_path: &Path) -> Result<(), String> {
@@ -13,7 +12,7 @@ pub fn create_prefix(wine_binary: &Path, prefix_path: &Path) -> Result<(), Strin
         )
     })?;
 
-    let status = Command::new(wine_binary)
+    let status = crate::wine::wine_command(wine_binary)
         .arg("wineboot")
         .arg("--init")
         .env("WINEPREFIX", prefix_path)
@@ -43,7 +42,7 @@ pub fn apply_dll_overrides(
     overrides: &[String],
 ) -> Result<(), String> {
     for dll in overrides {
-        let status = Command::new(wine_binary)
+        let status = crate::wine::wine_command(wine_binary)
             .args([
                 "reg",
                 "add",

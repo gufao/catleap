@@ -51,7 +51,7 @@ pub fn launch_game(
         build_launch_env, configure_prefix, create_prefix, get_prefix_path, prefix_exists,
     };
     use std::fs;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
     // Locate Wine binary
     let wine_binary = find_wine_binary(data_path)?;
@@ -95,11 +95,10 @@ pub fn launch_game(
         .try_clone()
         .map_err(|e| format!("Failed to clone log file handle: {}", e))?;
 
-    // Spawn Wine process
-    let mut cmd = Command::new(&wine_binary);
+    // Spawn Wine process under arch -x86_64
+    let mut cmd = crate::wine::wine_command(&wine_binary);
     cmd.arg(&exe_path);
 
-    // Apply compat launch args if available
     if let Some(entry) = compat {
         for arg in &entry.launch_args {
             cmd.arg(arg);
@@ -110,7 +109,6 @@ pub fn launch_game(
         .stdout(Stdio::from(log_file))
         .stderr(Stdio::from(log_file_stderr));
 
-    // Clear inherited env and set our own
     cmd.env_clear();
     for (k, v) in &env_map {
         cmd.env(k, v);
