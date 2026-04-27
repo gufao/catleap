@@ -7,7 +7,7 @@ import { SettingsPage } from "./pages/Settings";
 import { FirstRun } from "./pages/FirstRun";
 import { GameDetail } from "./components/GameDetail";
 import { useLauncher } from "./hooks/useLauncher";
-import { addManualGame } from "./lib/tauri";
+import { addManualGame, getSettings } from "./lib/tauri";
 import type { Game } from "./types";
 
 const ONBOARDED_KEY = "catleap_onboarded";
@@ -15,14 +15,18 @@ const ONBOARDED_KEY = "catleap_onboarded";
 type Page = "library" | "settings" | "detail";
 
 function App() {
-  const [firstRun, setFirstRun] = useState(true);
+  const [firstRun, setFirstRun] = useState(() => {
+    return localStorage.getItem(ONBOARDED_KEY) !== "true";
+  });
 
   useEffect(() => {
-    import("./lib/tauri").then(async ({ getSettings }) => {
-      const s = await getSettings();
-      const onboarded = localStorage.getItem(ONBOARDED_KEY) === "true";
-      if (onboarded && s.wine_version && (s.gptk_version || s.gptk_skipped)) {
-        setFirstRun(false);
+    // Already past onboarding from localStorage's POV — verify against
+    // persisted Settings. If wine isn't actually installed, push the
+    // user back through FirstRun.
+    if (localStorage.getItem(ONBOARDED_KEY) !== "true") return;
+    getSettings().then((s) => {
+      if (!(s.wine_version && (s.gptk_version || s.gptk_skipped))) {
+        setFirstRun(true);
       }
     });
   }, []);

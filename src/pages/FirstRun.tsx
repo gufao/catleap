@@ -84,7 +84,9 @@ export function FirstRun({ onComplete }: FirstRunProps) {
   async function handleSkipGptk() {
     setError(null);
     try {
-      await stopGptkWatch();
+      // Watcher may have already stopped on its own; ignore that failure
+      // mode so the persisted skip flag still gets written.
+      await stopGptkWatch().catch(() => undefined);
       await skipGptk();
       setStep("scan");
     } catch (e) {
@@ -132,7 +134,12 @@ export function FirstRun({ onComplete }: FirstRunProps) {
         <WineStep
           phase={winePhase}
           onStart={startWine}
-          onCancel={() => cancelWineInstall().catch(() => {})}
+          onCancel={() =>
+            cancelWineInstall().catch((e) => {
+              setError(String(e));
+              setWinePhase({ kind: "failed", error: `Cancel failed: ${e}` });
+            })
+          }
           onRetry={startWine}
         />
       )}
@@ -232,9 +239,16 @@ function WineStep({
   return (
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Installing Wine</h2>
-      <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden mb-3">
+      <div
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Wine installation progress"
+        className="w-full h-2 rounded-full bg-gray-200 overflow-hidden mb-3"
+      >
         <div
-          className="h-full bg-gray-900 transition-all"
+          className="h-full bg-gray-900 transition-all duration-200"
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -261,7 +275,7 @@ function WineStep({
 
 function GptkStep({
   phase,
-  foundVolume,
+  foundVolume: _foundVolume,
   onStart,
   onSkip,
 }: {
@@ -313,7 +327,7 @@ function GptkStep({
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Importing GPTK</h2>
       <p className="text-sm text-gray-600 mb-6">{label}</p>
-      {foundVolume && phase.kind !== "done" && phase.kind !== "failed" ? null : null}
+      {/* TODO(Task 13): surface foundVolume detail/eject button here when copy is in progress */}
       <button
         onClick={onSkip}
         className="w-full px-5 py-3 rounded-xl bg-transparent text-gray-500 font-medium text-sm hover:bg-gray-100"
