@@ -209,7 +209,30 @@ pub async fn run_install(
     if let Err(e) = verify_sha256(&archive, WINE_EXPECTED_SHA256) {
         log::warn!("first SHA verify failed: {e}; retrying");
         let _ = fs::remove_file(&archive);
-        download_to(WINE_RELEASE_URL, &archive, cancelled.clone(), |_, _| {}).await?;
+        if cancelled.load(Ordering::Relaxed) {
+            return Err("cancelled".into());
+        }
+        // Re-emit Downloading so the UI doesn't appear stuck on "Verifying"
+        emit_phase(InstallPhase::Downloading {
+            bytes_done: 0,
+            bytes_total: 0,
+        });
+        let mut last_progress = std::time::Instant::now();
+        download_to(WINE_RELEASE_URL, &archive, cancelled.clone(), |d, t| {
+            if last_progress.elapsed() >= std::time::Duration::from_millis(100) {
+                last_progress = std::time::Instant::now();
+                emit_phase(InstallPhase::Downloading {
+                    bytes_done: d,
+                    bytes_total: t,
+                });
+            }
+        })
+        .await?;
+        if cancelled.load(Ordering::Relaxed) {
+            let _ = fs::remove_file(&archive);
+            return Err("cancelled".into());
+        }
+        emit_phase(InstallPhase::Verifying);
         verify_sha256(&archive, WINE_EXPECTED_SHA256)?;
     }
 

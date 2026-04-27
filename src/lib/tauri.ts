@@ -45,6 +45,13 @@ export function startWineInstall(): Promise<void> {
   return invoke<void>("start_wine_install");
 }
 
+/**
+ * Sets the install cancellation flag. The download loop checks this flag
+ * between chunks and aborts. Promise resolution only confirms the flag
+ * was set — it does NOT mean the download has stopped. Listen for a
+ * `wine-install-progress` `Failed { error: "cancelled" }` event to know
+ * when the install has actually halted.
+ */
 export function cancelWineInstall(): Promise<void> {
   return invoke<void>("cancel_wine_install");
 }
