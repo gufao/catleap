@@ -39,12 +39,72 @@ pub fn find_main_executable(install_dir: &Path) -> Result<std::path::PathBuf, St
     Ok(exes.into_iter().next().unwrap())
 }
 
+/// Build the `arch -x86_64 wine64 Steam.exe -applaunch <appid> -silent` command
+/// for a SteamWine game. Public-in-crate for testability; not the spawn call.
+pub(crate) fn build_steam_runtime_command(
+    game: &crate::models::Game,
+    data_path: &std::path::Path,
+    compat_db: &crate::models::CompatDatabase,
+) -> Result<std::process::Command, String> {
+    use crate::compat::database::lookup_game;
+    use crate::wine::{bundled, prefix::build_launch_env, steam_runtime, wine_command};
+
+    let appid = game
+        .id
+        .strip_prefix("steam_wine_")
+        .ok_or_else(|| format!("invalid steam_wine id: {}", game.id))?;
+
+    let wine_binary = bundled::find_wine_binary(data_path)?;
+    let prefix_path = steam_runtime::runtime_prefix_path(data_path);
+    let steam_exe = steam_runtime::steam_exe_path(data_path);
+
+    if !steam_exe.exists() {
+        return Err("Steam runtime not installed. Click Install Steam in the sidebar.".into());
+    }
+
+    let compat = lookup_game(compat_db, appid);
+    let env_map = build_launch_env(
+        &wine_binary,
+        &prefix_path,
+        compat,
+        bundled::gptk_lib_path(data_path).as_deref(),
+    );
+
+    let mut cmd = wine_command(&wine_binary);
+    cmd.arg(&steam_exe);
+    cmd.arg("-applaunch");
+    cmd.arg(appid);
+    cmd.arg("-silent");
+    cmd.current_dir(&prefix_path);
+    cmd.env_clear();
+    for (k, v) in &env_map {
+        cmd.env(k, v);
+    }
+    Ok(cmd)
+}
+
 /// Launch a game with Wine. Returns the spawned Child process.
 pub fn launch_game(
     game: &Game,
     data_path: &Path,
     compat_db: &CompatDatabase,
 ) -> Result<Child, String> {
+    if matches!(game.source, crate::models::GameSource::SteamWine) {
+        let logs_dir = data_path.join("logs");
+        std::fs::create_dir_all(&logs_dir)
+            .map_err(|e| format!("Failed to create logs dir: {}", e))?;
+        let log_path = logs_dir.join(format!("{}.log", game.id));
+        let log_file = std::fs::File::create(&log_path)
+            .map_err(|e| format!("Failed to create log: {}", e))?;
+        let log_dup = log_file.try_clone()
+            .map_err(|e| format!("Failed to clone log handle: {}", e))?;
+
+        let mut cmd = build_steam_runtime_command(game, data_path, compat_db)?;
+        cmd.stdout(Stdio::from(log_file)).stderr(Stdio::from(log_dup));
+        return cmd.spawn().map_err(|e| format!("Failed to spawn Steam.exe -applaunch: {e}"));
+    }
+
+    // ── existing logic for Manual / Steam (macOS) games follows unchanged ──
     use crate::compat::database::lookup_game;
     use crate::wine::bundled::find_wine_binary;
     use crate::wine::prefix::{
@@ -146,5 +206,41 @@ mod tests {
         let result = find_main_executable(tmp.path());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("No .exe files found"));
+    }
+
+    #[test]
+    fn launch_via_steam_runtime_builds_correct_command() {
+        use crate::models::{Game, GameSource, GameStatus, CompatDatabase};
+        use crate::wine::steam_runtime;
+
+        let tmp = TempDir::new().unwrap();
+        let wine_root = tmp.path().join("wine");
+        std::fs::create_dir_all(wine_root.join("bin")).unwrap();
+        std::fs::write(wine_root.join("bin/wine64"), b"").unwrap();
+        let steam_exe = steam_runtime::steam_exe_path(tmp.path());
+        std::fs::create_dir_all(steam_exe.parent().unwrap()).unwrap();
+        std::fs::write(&steam_exe, b"").unwrap();
+
+        let game = Game {
+            id: "steam_wine_413150".into(),
+            name: "Stardew".into(),
+            source: GameSource::SteamWine,
+            status: GameStatus::Unknown,
+            install_dir: tmp.path().join("game"),
+            executable: None,
+            size_bytes: None,
+            is_running: false,
+            notes: None,
+        };
+        let compat = CompatDatabase { version: "t".into(), games: vec![] };
+
+        let cmd = build_steam_runtime_command(&game, tmp.path(), &compat).unwrap();
+        assert_eq!(cmd.get_program(), "/usr/bin/arch");
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert!(args.iter().any(|a| *a == "-x86_64"));
+        assert!(args.iter().any(|a| a.to_string_lossy().contains("Steam.exe")));
+        assert!(args.iter().any(|a| *a == "-applaunch"));
+        assert!(args.iter().any(|a| *a == "413150"));
+        assert!(args.iter().any(|a| *a == "-silent"));
     }
 }

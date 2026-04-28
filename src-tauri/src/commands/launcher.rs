@@ -1,4 +1,5 @@
 use crate::commands::games::AppState;
+use crate::models::GameSource;
 use crate::wine::bundled::{self, WineStatus};
 use tauri::State;
 
@@ -18,9 +19,16 @@ pub fn play_game(state: State<AppState>, game_id: String) -> Result<(), String> 
 
     let child = crate::wine::runner::launch_game(&game, &data_path, &state.compat_db)?;
 
-    state
-        .process_monitor
-        .track(game_id.clone(), child);
+    if matches!(game.source, GameSource::SteamWine) {
+        // Steam.exe -applaunch exits quickly; track by install_dir + pgrep.
+        state
+            .process_monitor
+            .track_external(game_id.clone(), game.install_dir.clone());
+        // The Child we got is the short-lived launcher; let it exit naturally.
+        let _ = child;
+    } else {
+        state.process_monitor.track(game_id.clone(), child);
+    }
 
     // Mark the game as running in the games list
     let mut games = state.games.lock().unwrap();

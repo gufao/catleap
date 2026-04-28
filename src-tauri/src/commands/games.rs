@@ -39,6 +39,13 @@ pub fn scan_steam(state: State<AppState>) -> Result<Vec<Game>, String> {
 
     database::apply_compat_data(&mut scanned_games, &state.compat_db);
 
+    // Also include games installed via Steam-Windows inside our prefix.
+    let data_path = state.settings.lock().unwrap().data_path.clone();
+    match crate::wine::steam_runtime::scan_wine_steam(&data_path, &state.compat_db) {
+        Ok(wine_games) => scanned_games.extend(wine_games),
+        Err(e) => log::warn!("scan_wine_steam failed: {e}; skipping Wine-Steam library"),
+    }
+
     // Merge: keep manual games, replace steam games with freshly scanned ones
     let mut games = state.games.lock().unwrap();
     let manual_games: Vec<Game> = games
