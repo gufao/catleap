@@ -1,58 +1,61 @@
 # Catleap Wine Build Pipeline
 
-Builds `wine-catleap-<VERSION>.tar.xz` from Apple's official GPTK Wine
-sources (CodeWeavers 22.1.1 + Apple patches). The artifact is uploaded
-as a GitHub Release asset and consumed by Catleap's first-run installer.
+Repackages the [gcenx-maintained](https://github.com/Gcenx/game-porting-toolkit)
+Game Porting Toolkit Wine binary into `wine-catleap-<VERSION>.tar.xz`. The
+artifact is uploaded as a GitHub Release asset and consumed by Catleap's
+first-run installer.
+
+## Why repackage instead of compiling?
+
+Apple's official `apple/apple/game-porting-toolkit` Homebrew formula requires
+a 2019-era toolchain (clang-8, `ld_classic`, MacOSX 10.14 SDK) that no longer
+exists on free CI macOS runners or current Xcode versions. The gcenx project
+keeps a working build of the same upstream sources (Apple's GPTK Wine =
+CodeWeavers 22.1.1 + Apple's patches) on current toolchains. We download
+their release tarball, extract just the `wine/` subtree from the `.app`
+bundle, and repack it under our naming and versioning. End users get a
+binary functionally equivalent to building from Apple's source — gcenx is
+the build operator instead of us.
 
 ## Prerequisites
 
-- macOS Apple Silicon, with Rosetta 2 installed (`softwareupdate --install-rosetta`)
-- Intel Homebrew at `/usr/local/bin/brew`. Install:
-  ```sh
-  arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  ```
-- ~30 GB free disk for the build tree
+- Any current macOS (no Xcode, no Homebrew, no Rosetta required)
+- `curl`, `tar`, `shasum` (all built-in)
 
 ## Usage
 
 ```sh
-arch -x86_64 zsh tools/build-wine/build.sh
+tools/build-wine/build.sh
 ```
 
-Override the version:
+Override the Catleap version or the upstream gcenx version:
 
 ```sh
-VERSION=1.1.0 arch -x86_64 zsh tools/build-wine/build.sh
+VERSION=1.1.0 GCENX_VERSION=3.0-3 tools/build-wine/build.sh
 ```
 
-The build takes 30–90 minutes depending on hardware. Output:
+Run takes ~3-5 minutes (most of it downloading ~240 MB from gcenx's GitHub
+release). Output:
 
 - `tools/build-wine/dist/wine-catleap-<VERSION>.tar.xz`
 - `tools/build-wine/dist/wine-catleap-<VERSION>.tar.xz.sha256`
 
-## Publishing
+## Publishing (CI)
 
-1. Verify the artifact runs locally by extracting into a test data dir
-   and pointing Catleap at it (or copy into `~/Library/Application Support/Catleap/wine/`).
-2. Create a GitHub Release on the Catleap repo named `wine-catleap-<VERSION>`.
-3. Upload the `.tar.xz` and `.sha256` as release assets.
-4. Update `WINE_RELEASE_URL`, `WINE_EXPECTED_SHA256`, and `WINE_EXPECTED_VERSION`
-   constants in `src-tauri/src/wine/installer.rs` to point at the new release.
-5. Bump `Settings.wine_version` schema if needed and ship a Catleap release.
+The `.github/workflows/build-wine.yml` workflow runs this script on a macOS
+runner whenever a `wine-catleap-v*` tag is pushed (or via manual dispatch).
+On success it creates a GitHub Release with the `.tar.xz` and `.sha256`
+attached, and opens a PR updating the installer constants in
+`src-tauri/src/wine/installer.rs`. Merge that PR to ship.
 
-## openssl@1.1
+```sh
+gh workflow run build-wine.yml -f version=1.0.1
+# …or
+git tag wine-catleap-v1.0.1 && git push origin wine-catleap-v1.0.1
+```
 
-Apple's GPTK formula depends on `openssl@1.1`, which has been removed
-from `homebrew-core`. The script obtains it from the `gcenx/wine` tap
-(which still maintains it). We only consume openssl@1.1 at build time;
-no gcenx artifacts ship to end users.
+## Bumping the upstream
 
-## Troubleshooting
-
-- **"openssl@1.1 not found"**: the `gcenx/wine` tap may have changed its
-  formulae layout. Inspect `brew search openssl` and adjust the script.
-- **Patch fails to apply**: Apple's tap may have updated the patch.
-  `brew tap apple/apple https://github.com/apple/homebrew-apple` and
-  re-run.
-- **Codesign errors**: ensure no antivirus is interfering. Ad-hoc
-  signatures (`codesign --sign -`) are sufficient for local launch.
+When gcenx publishes a new GPTK release, set `GCENX_VERSION` accordingly. We
+deliberately don't auto-track latest — pinning gives us a stable artifact
+that CI can reproduce identically on demand.

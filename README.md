@@ -91,8 +91,9 @@ The workflow takes ~60 minutes. When it completes:
 
 ## Acknowledgements
 
-- Apple — for the [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) (D3DMetal, the patched Wine, the toolchain).
+- Apple — for the [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) (D3DMetal, the patched Wine, the original toolchain).
 - CodeWeavers — for the upstream Wine sources Apple builds on top of.
+- [gcenx/game-porting-toolkit](https://github.com/Gcenx/game-porting-toolkit) — Catleap's bundled `wine64` is a repackaging of gcenx's actively-maintained build of the same Apple/CodeWeavers sources, kept compiling on current macOS toolchains.
 
 ## License
 

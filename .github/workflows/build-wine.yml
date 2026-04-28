@@ -1,7 +1,7 @@
 name: Build Wine
 
-# Builds wine-catleap-<version>.tar.xz from Apple's official GPTK Wine sources
-# on a native Intel x86_64 macOS runner, publishes a GitHub Release with the
+# Repackages the gcenx-maintained Game Porting Toolkit Wine binary into
+# `wine-catleap-<version>.tar.xz`, publishes a GitHub Release with the
 # tarball + SHA256, and opens a PR updating the installer constants.
 #
 # Triggers:
@@ -15,8 +15,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to build (e.g. 1.0.0)"
+        description: "Version to publish (e.g. 1.0.0)"
         required: true
+        type: string
+      gcenx_version:
+        description: "Upstream gcenx GPTK version to repackage (default 3.0-3)"
+        required: false
+        default: "3.0-3"
         type: string
 
 permissions:
@@ -25,12 +30,8 @@ permissions:
 
 jobs:
   build:
-    # macos-14 is ARM64. We install Intel brew under Rosetta so we can
-    # run Apple's x86_64-only GPTK formula. Need this runner specifically
-    # because Xcode 15 (with ld_classic) is available here — the Intel
-    # macos-15-intel only has Xcode 16+ which removed ld_classic.
-    runs-on: macos-14
-    timeout-minutes: 180
+    runs-on: macos-15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -41,8 +42,10 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             VERSION="${{ inputs.version }}"
+            GCENX_VERSION="${{ inputs.gcenx_version }}"
           else
             VERSION="${GITHUB_REF_NAME#wine-catleap-v}"
+            GCENX_VERSION="3.0-3"
           fi
           if [[ -z "${VERSION}" ]]; then
             echo "Could not resolve version from trigger" >&2
@@ -50,97 +53,14 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=wine-catleap-v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "gcenx_version=${GCENX_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify ARM runner with Rosetta
-        run: |
-          if [[ "$(uname -m)" != "arm64" ]]; then
-            echo "Expected arm64 runner, got: $(uname -m)" >&2
-            exit 1
-          fi
-          ROSETTA="$(arch -x86_64 uname -m 2>&1)"
-          if [[ "$ROSETTA" != "x86_64" ]]; then
-            echo "Rosetta not functional: arch -x86_64 uname -m → $ROSETTA" >&2
-            exit 1
-          fi
-          echo "Native: $(uname -m), Rosetta: $ROSETTA"
-
-      - name: Switch to Xcode 15 (has ld_classic)
-        run: |
-          for v in 15.4 15.3 15.2 15.1 15.0.1; do
-            if [[ -d "/Applications/Xcode_${v}.app" ]]; then
-              sudo xcode-select -s "/Applications/Xcode_${v}.app/Contents/Developer"
-              echo "DEVELOPER_DIR=/Applications/Xcode_${v}.app/Contents/Developer" >> "$GITHUB_ENV"
-              echo "Active Xcode: ${v}"
-              xcrun -f ld_classic && echo "ld_classic OK" || { echo "ld_classic missing in Xcode ${v}" >&2; exit 1; }
-              exit 0
-            fi
-          done
-          echo "No Xcode 15.x found on this runner" >&2
-          exit 1
-
-      - name: Install Intel Homebrew under Rosetta
-        run: |
-          if [[ ! -x /usr/local/bin/brew ]]; then
-            echo "==> Installing Intel Homebrew at /usr/local"
-            NONINTERACTIVE=1 arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/null
-          fi
-          /usr/local/bin/brew --version
-
-      - name: Probe Xcode/SDK environment
-        run: |
-          echo "==> /Applications/Xcode*.app"
-          ls -d /Applications/Xcode*.app 2>/dev/null || echo "(none)"
-          echo
-          echo "==> xcode-select -p"
-          xcode-select -p
-          echo
-          echo "==> xcrun --show-sdk-path"
-          xcrun --show-sdk-path
-          echo
-          echo "==> xcrun --show-sdk-version"
-          xcrun --show-sdk-version
-          echo
-          echo "==> xcodebuild -showsdks (macOS only)"
-          xcodebuild -showsdks 2>&1 | grep -i macos || true
-          echo
-          echo "==> Available SDKs in CommandLineTools"
-          ls /Library/Developer/CommandLineTools/SDKs/ 2>/dev/null || echo "(no CLT SDKs)"
-          echo
-          echo "==> /usr/bin/clang --version"
-          /usr/bin/clang --version
-
-      - name: Run build pipeline (under Rosetta)
+      - name: Repackage gcenx GPTK as wine-catleap
         env:
           VERSION: ${{ steps.ver.outputs.version }}
+          GCENX_VERSION: ${{ steps.ver.outputs.gcenx_version }}
         run: |
-          arch -x86_64 zsh tools/build-wine/build.sh
-
-      - name: Dump config.log on failure
-        if: failure()
-        run: |
-          for log in \
-            tools/build-wine/build/wine64-build/config.log \
-            tools/build-wine/build/wine32-build/config.log; do
-            if [[ -f "$log" ]]; then
-              echo "===== $log : error/failure context ====="
-              grep -nE "error:|warning:|fatal error|ld: |conftest|undefined symbol|cannot find|failed program" "$log" || true
-              echo
-              echo "===== $log : first 250 lines ====="
-              head -n 250 "$log"
-              echo
-            fi
-          done
-
-      - name: Upload config.log as artifact on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: configure-logs
-          path: |
-            tools/build-wine/build/wine64-build/config.log
-            tools/build-wine/build/wine32-build/config.log
-          if-no-files-found: ignore
-          retention-days: 7
+          tools/build-wine/build.sh
 
       - name: Capture artifact metadata
         id: artifact
@@ -149,12 +69,8 @@ jobs:
           TARBALL="${DIST}/wine-catleap-${{ steps.ver.outputs.version }}.tar.xz"
           SHA_FILE="${TARBALL}.sha256"
 
-          if [[ ! -f "${TARBALL}" ]]; then
-            echo "Tarball missing: ${TARBALL}" >&2
-            exit 1
-          fi
-          if [[ ! -f "${SHA_FILE}" ]]; then
-            echo "SHA256 file missing: ${SHA_FILE}" >&2
+          if [[ ! -f "${TARBALL}" || ! -f "${SHA_FILE}" ]]; then
+            echo "Expected artifacts missing: ${TARBALL}" >&2
             exit 1
           fi
 
@@ -169,10 +85,11 @@ jobs:
           {
             echo "## Build summary"
             echo ""
-            echo "- Version: \`${{ steps.ver.outputs.version }}\`"
-            echo "- Tag:     \`${{ steps.ver.outputs.tag }}\`"
-            echo "- Size:    ${SIZE_MB} MB"
-            echo "- SHA256:  \`${SHA}\`"
+            echo "- Catleap version: \`${{ steps.ver.outputs.version }}\`"
+            echo "- gcenx upstream:  \`${{ steps.ver.outputs.gcenx_version }}\`"
+            echo "- Tag:             \`${{ steps.ver.outputs.tag }}\`"
+            echo "- Size:            ${SIZE_MB} MB"
+            echo "- SHA256:          \`${SHA}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create GitHub Release
@@ -182,15 +99,18 @@ jobs:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: Wine Catleap ${{ steps.ver.outputs.version }}
           body: |
-            Wine binary for Catleap, compiled from Apple's official GPTK
-            Wine sources (CodeWeavers 22.1.1 + Apple's patch).
+            Wine binary for Catleap, repackaged from the
+            [gcenx Game Porting Toolkit](https://github.com/Gcenx/game-porting-toolkit)
+            ${{ steps.ver.outputs.gcenx_version }} build.
+
+            **Upstream provenance:** Apple GPTK Wine (CodeWeavers 22.1.1 + Apple's
+            patches), compiled and maintained by gcenx for current macOS toolchains.
 
             **Architecture:** x86_64 (run via Rosetta on Apple Silicon)
             **SHA256:** `${{ steps.artifact.outputs.sha256 }}`
 
-            This artifact is consumed by Catleap's first-run installer.
-            The download URL and SHA256 are wired into
-            `src-tauri/src/wine/installer.rs`.
+            Consumed by Catleap's first-run installer via `WINE_RELEASE_URL` /
+            `WINE_EXPECTED_SHA256` constants in `src-tauri/src/wine/installer.rs`.
           draft: false
           prerelease: false
           files: |
@@ -215,9 +135,6 @@ jobs:
           INSTALLER=src-tauri/src/wine/installer.rs
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/wine-catleap-${VERSION}.tar.xz"
 
-          # Rewrite the three constants in installer.rs. Each constant has a
-          # declaration line followed by an indented value line; awk reads the
-          # value line via getline so we never depend on string contents.
           awk -v ver="${VERSION}" -v url="${URL}" -v sha="${SHA}" '
             /^pub const WINE_EXPECTED_VERSION:/ {
               print "pub const WINE_EXPECTED_VERSION: &str = \"" ver "\";"
