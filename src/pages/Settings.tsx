@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSettings } from "../hooks/useSettings";
-import { getSettings, startGptkWatch, stopGptkWatch } from "../lib/tauri";
+import { getSettings, startGptkWatch, stopGptkWatch, resetSteamRuntime } from "../lib/tauri";
 import { useTauriEvent } from "../hooks/useTauriEvent";
+import { useSteamRuntime } from "../hooks/useSteamRuntime";
 import type { GptkImportPhase, Settings } from "../types";
 
 function GptkSection() {
@@ -93,6 +94,59 @@ function GptkSection() {
           </button>
         )}
       </div>
+    </section>
+  );
+}
+
+function SteamRuntimeSection() {
+  const { state, startInstall } = useSteamRuntime();
+
+  async function handleReset() {
+    if (!window.confirm(
+      "Delete the Steam runtime and all games installed inside it? This cannot be undone."
+    )) return;
+    try {
+      await resetSteamRuntime();
+      window.location.reload();
+    } catch (e) {
+      alert(`Failed to reset: ${e}`);
+    }
+  }
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-lg font-semibold text-gray-900 mb-3">Steam Runtime</h2>
+      {state.kind === "installed" && (
+        <>
+          <p className="text-sm text-gray-600 mb-3">
+            Steam-Windows is installed. Use the Library to launch Windows games.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleReset}
+              className="px-4 py-2 rounded-lg bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50"
+            >
+              Reset Steam
+            </button>
+            <button
+              onClick={startInstall}
+              className="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+            >
+              Reinstall
+            </button>
+          </div>
+        </>
+      )}
+      {state.kind === "not_installed" && (
+        <p className="text-sm text-gray-600">
+          Steam runtime not installed. Use the sidebar to install it.
+        </p>
+      )}
+      {state.kind === "installing" && (
+        <p className="text-sm text-gray-600">
+          Installation in progress... see the sidebar for status.
+        </p>
+      )}
     </section>
   );
 }
@@ -214,6 +268,9 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 
           {/* GPTK */}
           <GptkSection />
+
+          {/* Steam Runtime */}
+          <SteamRuntimeSection />
 
           {/* Save */}
           <div className="flex items-center gap-3">
