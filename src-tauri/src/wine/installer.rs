@@ -10,9 +10,9 @@ use std::sync::Arc;
 pub const WINE_EXPECTED_VERSION: &str = "1.0.0";
 // Placeholder until first real release is published.
 pub const WINE_RELEASE_URL: &str =
-    "https://github.com/REPLACE_ME/catleap/releases/download/wine-catleap-1.0.0/wine-catleap-1.0.0.tar.xz";
+    "https://github.com/gufao/catleap/releases/download/wine-catleap-v1.0.0/wine-catleap-1.0.0.tar.xz";
 pub const WINE_EXPECTED_SHA256: &str =
-    "0000000000000000000000000000000000000000000000000000000000000000";
+    "9d1869dde632a190c6921d4e30911d58f941f0d7e06fab5d2361b12386a76439";
 pub const REQUIRED_FREE_BYTES: u64 = 500 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
