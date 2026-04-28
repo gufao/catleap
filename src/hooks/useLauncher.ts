@@ -28,10 +28,20 @@ export function useLauncher(onStatusChange: () => void) {
     }
   }, [onStatusChange]);
 
-  // Poll running status every 3s
+  // Poll running status every 3s. Only trigger a parent refresh when the
+  // set of running games actually changes — otherwise the parent's
+  // refreshKey-based remount causes a visible flicker every poll.
+  const lastRunningRef = useRef<string>("");
   useEffect(() => {
     pollRef.current = setInterval(async () => {
-      try { await invoke("get_running_games"); onStatusChange(); } catch {}
+      try {
+        const ids = await invoke<string[]>("get_running_games");
+        const sig = [...ids].sort().join(",");
+        if (sig !== lastRunningRef.current) {
+          lastRunningRef.current = sig;
+          onStatusChange();
+        }
+      } catch {}
     }, 3000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [onStatusChange]);
