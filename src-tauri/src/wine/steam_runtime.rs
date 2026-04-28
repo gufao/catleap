@@ -122,6 +122,8 @@ pub fn bootstrap_prefix(
         .env("WINEPREFIX", &prefix)
         .env("WINEARCH", "win64")
         .env("WINEDEBUG", "-all")
+        .env("WINEESYNC", "1")
+        .env("WINEMSYNC", "1")
         .status()
         .map_err(|e| format!("wineboot --init: {e}"))?;
     if !status.success() {
@@ -137,6 +139,8 @@ pub fn bootstrap_prefix(
         .env("WINEPREFIX", &prefix)
         .env("WINEARCH", "win64")
         .env("WINEDEBUG", "-all")
+        .env("WINEESYNC", "1")
+        .env("WINEMSYNC", "1")
         .status();
     check_cancel()?;
 
@@ -148,6 +152,8 @@ pub fn bootstrap_prefix(
         .env("WINEPREFIX", &prefix)
         .env("WINEARCH", "win64")
         .env("WINEDEBUG", "-all")
+        .env("WINEESYNC", "1")
+        .env("WINEMSYNC", "1")
         .status();
     check_cancel()?;
 
@@ -161,6 +167,8 @@ pub fn bootstrap_prefix(
         .env("WINEPREFIX", &prefix)
         .env("WINEARCH", "win64")
         .env("WINEDEBUG", "-all")
+        .env("WINEESYNC", "1")
+        .env("WINEMSYNC", "1")
         .status();
 
     Ok(())
@@ -223,6 +231,8 @@ pub async fn run_install(
         .env("WINEPREFIX", &prefix)
         .env("WINEARCH", "win64")
         .env("WINEDEBUG", "-all")
+        .env("WINEESYNC", "1")
+        .env("WINEMSYNC", "1")
         .status()
         .map_err(|e| format!("spawn SteamSetup.exe: {e}"))?;
 
