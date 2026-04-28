@@ -3,6 +3,7 @@ pub mod gptk_import;
 pub mod installer;
 pub mod prefix;
 pub mod runner;
+pub mod steam_runtime;
 
 use std::path::Path;
 use std::process::Command;
