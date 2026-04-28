@@ -82,8 +82,14 @@ pub fn extract_tar_xz(archive: &Path, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Clear `com.apple.quarantine` xattrs and ad-hoc codesign the wine tree.
-/// Idempotent.
+/// Clear `com.apple.quarantine` xattrs from the wine tree. Idempotent.
+///
+/// We do NOT codesign here. The wine binaries we ship are already ad-hoc
+/// signed by the upstream build (gcenx). The wine_root we get is a plain
+/// directory (`bin/`, `lib/`, `share/`), not a bundle, so a single
+/// `codesign --deep` invocation rejects it as "bundle format unrecognized".
+/// Re-signing each Mach-O individually would work but is slow and
+/// unnecessary as long as upstream signatures survive tar extraction.
 pub fn clear_quarantine_and_sign(wine_root: &Path) -> Result<(), String> {
     use std::process::Command;
 
@@ -95,14 +101,6 @@ pub fn clear_quarantine_and_sign(wine_root: &Path) -> Result<(), String> {
         .status()
         .map_err(|e| format!("xattr: {e}"))?;
 
-    let status = Command::new("/usr/bin/codesign")
-        .args(["--force", "--deep", "--sign", "-"])
-        .arg(wine_root)
-        .status()
-        .map_err(|e| format!("codesign: {e}"))?;
-    if !status.success() {
-        return Err(format!("codesign exit {}", status.code().unwrap_or(-1)));
-    }
     Ok(())
 }
 
