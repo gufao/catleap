@@ -30,8 +30,15 @@ function gradientForId(id: string): string {
 
 export function GameCard({ game, onPlay, onStop, onClick }: GameCardProps) {
   const isIncompatible = game.status === "incompatible";
+  const sourceLabel =
+    game.source === "steam"
+      ? "Steam"
+      : game.source === "steam_wine"
+      ? "Steam (Windows)"
+      : "Manual";
+
   const subtitle = [
-    game.source === "steam" ? "Steam" : "Manual",
+    sourceLabel,
     game.size_bytes ? formatBytes(game.size_bytes) : null,
   ]
     .filter(Boolean)
@@ -49,11 +56,16 @@ export function GameCard({ game, onPlay, onStop, onClick }: GameCardProps) {
     >
       {/* Cover */}
       <div
-        className={`h-32 bg-gradient-to-br ${gradientForId(game.id)} flex items-center justify-center`}
+        className={`h-32 bg-gradient-to-br ${gradientForId(game.id)} relative flex items-center justify-center`}
       >
         <span className="text-white/80 text-3xl font-bold select-none">
           {game.name.charAt(0).toUpperCase()}
         </span>
+        {game.source === "steam_wine" && (
+          <span className="absolute top-2 right-2 bg-black/50 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
+            Windows
+          </span>
+        )}
       </div>
 
       {/* Info */}

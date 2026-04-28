@@ -1,7 +1,7 @@
 import { SidebarSteam } from "./SidebarSteam";
 
 export type LibraryFilter = "all" | "compatible" | "recent";
-export type SourceFilter = "all" | "steam" | "manual";
+export type SourceFilter = "all" | "steam" | "steam_wine" | "manual";
 
 interface SidebarProps {
   libraryFilter: LibraryFilter;
@@ -81,6 +81,11 @@ export function Sidebar({
           label="Steam"
           active={sourceFilter === "steam"}
           onClick={() => onSourceFilterChange("steam")}
+        />
+        <NavItem
+          label="Steam (Windows)"
+          active={sourceFilter === "steam_wine"}
+          onClick={() => onSourceFilterChange("steam_wine")}
         />
         <NavItem
           label="Manual"
