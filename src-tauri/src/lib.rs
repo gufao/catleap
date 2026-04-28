@@ -65,6 +65,41 @@ fn setup_steam_watcher(app_handle: tauri::AppHandle, steam_path: std::path::Path
     });
 }
 
+fn setup_steam_runtime_watcher(app_handle: tauri::AppHandle, data_path: std::path::PathBuf) {
+    let watch_path = data_path
+        .join("prefixes/_steam_runtime/drive_c/Program Files (x86)/Steam/steamapps");
+    std::thread::spawn(move || {
+        // Wait until the prefix exists before attaching. Poll lazily.
+        loop {
+            if watch_path.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_secs(5));
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut watcher = match notify::recommended_watcher(move |res| {
+            let _ = tx.send(res);
+        }) {
+            Ok(w) => w,
+            Err(e) => {
+                log::warn!("Failed to create steam runtime watcher: {e}");
+                return;
+            }
+        };
+        if let Err(e) = watcher.watch(&watch_path, RecursiveMode::NonRecursive) {
+            log::warn!("Failed to watch {:?}: {e}", watch_path);
+            return;
+        }
+        for res in rx {
+            if let Ok(event) = res {
+                if matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_)) {
+                    let _ = app_handle.emit("steam-library-changed", ());
+                }
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let compat_db = database::load_embedded_database()
@@ -89,7 +124,9 @@ pub fn run() {
             let app_handle = app.handle().clone();
             let state: tauri::State<AppState> = app.state();
             let steam_path = state.settings.lock().unwrap().steam_path.clone();
-            setup_steam_watcher(app_handle, steam_path);
+            setup_steam_watcher(app_handle.clone(), steam_path);
+            let data_path = state.settings.lock().unwrap().data_path.clone();
+            setup_steam_runtime_watcher(app_handle, data_path);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
