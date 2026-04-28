@@ -25,10 +25,10 @@ permissions:
 
 jobs:
   build:
-    # macos-14 (Intel x86_64) ships Xcode 15 alongside 16, which still has
-    # ld_classic and SDKs that the Apple GPTK formula expects.
-    # macos-15-intel only has Xcode 16+ (no ld_classic), where Apple's
-    # 2019-era clang-8 fails to link. macos-14 is deprecated Nov 2026.
+    # macos-14 is ARM64. We install Intel brew under Rosetta so we can
+    # run Apple's x86_64-only GPTK formula. Need this runner specifically
+    # because Xcode 15 (with ld_classic) is available here — the Intel
+    # macos-15-intel only has Xcode 16+ which removed ld_classic.
     runs-on: macos-14
     timeout-minutes: 180
 
@@ -51,18 +51,39 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=wine-catleap-v${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify Intel runner
+      - name: Verify ARM runner with Rosetta
         run: |
-          ARCH="$(uname -m)"
-          if [[ "${ARCH}" != "x86_64" ]]; then
-            echo "Expected x86_64 runner, got: ${ARCH}" >&2
+          if [[ "$(uname -m)" != "arm64" ]]; then
+            echo "Expected arm64 runner, got: $(uname -m)" >&2
             exit 1
           fi
+          ROSETTA="$(arch -x86_64 uname -m 2>&1)"
+          if [[ "$ROSETTA" != "x86_64" ]]; then
+            echo "Rosetta not functional: arch -x86_64 uname -m → $ROSETTA" >&2
+            exit 1
+          fi
+          echo "Native: $(uname -m), Rosetta: $ROSETTA"
+
+      - name: Switch to Xcode 15 (has ld_classic)
+        run: |
+          for v in 15.4 15.3 15.2 15.1 15.0.1; do
+            if [[ -d "/Applications/Xcode_${v}.app" ]]; then
+              sudo xcode-select -s "/Applications/Xcode_${v}.app/Contents/Developer"
+              echo "DEVELOPER_DIR=/Applications/Xcode_${v}.app/Contents/Developer" >> "$GITHUB_ENV"
+              echo "Active Xcode: ${v}"
+              xcrun -f ld_classic && echo "ld_classic OK" || { echo "ld_classic missing in Xcode ${v}" >&2; exit 1; }
+              exit 0
+            fi
+          done
+          echo "No Xcode 15.x found on this runner" >&2
+          exit 1
+
+      - name: Install Intel Homebrew under Rosetta
+        run: |
           if [[ ! -x /usr/local/bin/brew ]]; then
-            echo "Intel Homebrew not found at /usr/local/bin/brew" >&2
-            exit 1
+            echo "==> Installing Intel Homebrew at /usr/local"
+            NONINTERACTIVE=1 arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/null
           fi
-          echo "uname -m: ${ARCH}"
           /usr/local/bin/brew --version
 
       - name: Probe Xcode/SDK environment
@@ -88,11 +109,11 @@ jobs:
           echo "==> /usr/bin/clang --version"
           /usr/bin/clang --version
 
-      - name: Run build pipeline
+      - name: Run build pipeline (under Rosetta)
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          tools/build-wine/build.sh
+          arch -x86_64 zsh tools/build-wine/build.sh
 
       - name: Dump config.log on failure
         if: failure()
