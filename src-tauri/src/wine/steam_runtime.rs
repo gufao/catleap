@@ -70,6 +70,102 @@ pub fn scan_wine_steam(
     Ok(games)
 }
 
+use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SteamInstallPhase {
+    InitializingPrefix,
+    InstallingMono,
+    InstallingGecko,
+    ConfiguringPrefix,
+    DownloadingInstaller { bytes_done: u64, bytes_total: u64 },
+    LaunchingInstaller,
+    Done,
+    Failed { error: String },
+}
+
+/// Run wineboot --init then trigger Mono/Gecko auto-install via wineboot --update.
+/// Idempotent: if `<prefix>/system.reg` exists, returns Ok immediately without
+/// emitting any phase events.
+pub fn bootstrap_prefix(
+    data_path: &Path,
+    wine_binary: &Path,
+    cancelled: Arc<AtomicBool>,
+    mut emit_phase: impl FnMut(SteamInstallPhase),
+) -> Result<(), String> {
+    use crate::wine::wine_command;
+
+    let prefix = runtime_prefix_path(data_path);
+
+    if prefix.join("system.reg").exists() {
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(&prefix).map_err(|e| format!("mkdir prefix: {e}"))?;
+
+    let check_cancel = || -> Result<(), String> {
+        if cancelled.load(Ordering::Relaxed) {
+            Err("cancelled".into())
+        } else {
+            Ok(())
+        }
+    };
+
+    // 1. wineboot --init
+    emit_phase(SteamInstallPhase::InitializingPrefix);
+    let status = wine_command(wine_binary)
+        .arg("wineboot")
+        .arg("--init")
+        .env("WINEPREFIX", &prefix)
+        .env("WINEARCH", "win64")
+        .env("WINEDEBUG", "-all")
+        .status()
+        .map_err(|e| format!("wineboot --init: {e}"))?;
+    if !status.success() {
+        return Err(format!("wineboot --init exit {}", status.code().unwrap_or(-1)));
+    }
+    check_cancel()?;
+
+    // 2. Mono (wineboot --update triggers Mono auto-download when missing)
+    emit_phase(SteamInstallPhase::InstallingMono);
+    let _ = wine_command(wine_binary)
+        .arg("wineboot")
+        .arg("--update")
+        .env("WINEPREFIX", &prefix)
+        .env("WINEARCH", "win64")
+        .env("WINEDEBUG", "-all")
+        .status();
+    check_cancel()?;
+
+    // 3. Gecko triggers on first browser instantiation; force it now via reg
+    //    query that touches IE-related paths.
+    emit_phase(SteamInstallPhase::InstallingGecko);
+    let _ = wine_command(wine_binary)
+        .args(["reg", "query", r"HKEY_CURRENT_USER\Software\Wine\MSHTML"])
+        .env("WINEPREFIX", &prefix)
+        .env("WINEARCH", "win64")
+        .env("WINEDEBUG", "-all")
+        .status();
+    check_cancel()?;
+
+    // 4. Set Windows version to win10 — some Steam features check the OS.
+    emit_phase(SteamInstallPhase::ConfiguringPrefix);
+    let _ = wine_command(wine_binary)
+        .args([
+            "reg", "add", r"HKEY_CURRENT_USER\Software\Wine",
+            "/v", "Version", "/d", "win10", "/f",
+        ])
+        .env("WINEPREFIX", &prefix)
+        .env("WINEARCH", "win64")
+        .env("WINEDEBUG", "-all")
+        .status();
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +248,24 @@ mod tests {
         std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
         std::fs::write(&exe, b"").unwrap();
         assert!(is_installed(tmp.path()));
+    }
+
+    #[test]
+    fn bootstrap_prefix_skips_when_system_reg_exists() {
+        let tmp = TempDir::new().unwrap();
+        let prefix = runtime_prefix_path(tmp.path());
+        std::fs::create_dir_all(&prefix).unwrap();
+        std::fs::write(prefix.join("system.reg"), b"existing").unwrap();
+
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let mut phases_emitted = 0;
+        let result = bootstrap_prefix(
+            tmp.path(),
+            std::path::Path::new("/nonexistent/wine64"),
+            cancelled,
+            |_| { phases_emitted += 1; },
+        );
+        assert!(result.is_ok());
+        assert_eq!(phases_emitted, 0, "should skip emitting any phase when prefix already exists");
     }
 }
