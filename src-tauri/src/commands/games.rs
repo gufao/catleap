@@ -115,7 +115,7 @@ pub fn read_game_log(state: State<AppState>, game_id: String) -> Result<String, 
         games
             .iter()
             .find(|g| g.id == game_id)
-            .map(|g| format!("{:?}", g.source).to_lowercase())
+            .map(|g| g.source.as_path_str().to_string())
             .unwrap_or_else(|| "unknown".to_string())
     };
 

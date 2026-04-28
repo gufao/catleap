@@ -11,12 +11,29 @@ pub enum GameStatus {
     Unknown,
 }
 
+// snake_case is wire-compatible with the old `lowercase` rule for the
+// single-word variants (Steam → "steam", Manual → "manual") and correctly
+// produces "steam_wine" for the new multi-word variant.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum GameSource {
     Steam,
     SteamWine,
     Manual,
+}
+
+impl GameSource {
+    /// Stable, snake_case-style identifier used for filesystem paths and
+    /// log filenames. Distinct from `Debug` (which is PascalCase) and
+    /// equivalent to the serde wire form. Always use this when building
+    /// paths from a `GameSource` so all three contexts agree.
+    pub fn as_path_str(&self) -> &'static str {
+        match self {
+            GameSource::Steam => "steam",
+            GameSource::SteamWine => "steam_wine",
+            GameSource::Manual => "manual",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,5 +162,12 @@ mod tests {
         assert_eq!(m, "\"manual\"");
         let st = serde_json::to_string(&GameSource::Steam).unwrap();
         assert_eq!(st, "\"steam\"");
+    }
+
+    #[test]
+    fn game_source_as_path_str_matches_wire_form() {
+        assert_eq!(GameSource::Steam.as_path_str(), "steam");
+        assert_eq!(GameSource::SteamWine.as_path_str(), "steam_wine");
+        assert_eq!(GameSource::Manual.as_path_str(), "manual");
     }
 }

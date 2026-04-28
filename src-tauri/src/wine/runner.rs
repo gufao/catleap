@@ -62,7 +62,7 @@ pub fn launch_game(
     };
 
     // Determine prefix path
-    let source_str = format!("{:?}", game.source).to_lowercase();
+    let source_str = game.source.as_path_str();
     let prefix_path = get_prefix_path(data_path, &game.id, &source_str);
 
     // Lookup compat entry (game id format: "steam_<appid>")
