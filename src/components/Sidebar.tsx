@@ -1,3 +1,5 @@
+import { SidebarSteam } from "./SidebarSteam";
+
 export type LibraryFilter = "all" | "compatible" | "recent";
 export type SourceFilter = "all" | "steam" | "manual";
 
@@ -39,6 +41,8 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <aside className="w-56 h-full bg-gray-50 border-r border-gray-200 flex flex-col py-4 px-3 shrink-0">
+      <SidebarSteam />
+
       <div className="mb-1 px-3 py-1">
         <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
           Library
