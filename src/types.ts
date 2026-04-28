@@ -1,5 +1,5 @@
 export type GameStatus = "compatible" | "experimental" | "incompatible" | "unknown";
-export type GameSource = "steam" | "manual";
+export type GameSource = "steam" | "steam_wine" | "manual";
 
 export interface Game {
   id: string;
@@ -19,6 +19,7 @@ export interface Settings {
   wine_version: string | null;
   gptk_version: string | null;
   gptk_skipped: boolean;
+  steam_runtime_installed: boolean;
 }
 
 export interface WineStatus {
@@ -44,4 +45,14 @@ export type GptkImportPhase =
   | { kind: "found"; version: string }
   | { kind: "copying" }
   | { kind: "done"; version: string }
+  | { kind: "failed"; error: string };
+
+export type SteamInstallPhase =
+  | { kind: "initializing_prefix" }
+  | { kind: "installing_mono" }
+  | { kind: "installing_gecko" }
+  | { kind: "configuring_prefix" }
+  | { kind: "downloading_installer"; bytes_done: number; bytes_total: number }
+  | { kind: "launching_installer" }
+  | { kind: "done" }
   | { kind: "failed"; error: string };

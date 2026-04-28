@@ -53,6 +53,7 @@ export function FirstRun({ onComplete }: FirstRunProps) {
           wine_version: null,
           gptk_version: null,
           gptk_skipped: false,
+          steam_runtime_installed: false,
         });
       });
   }, []);

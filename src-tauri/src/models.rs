@@ -12,9 +12,10 @@ pub enum GameStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum GameSource {
     Steam,
+    SteamWine,
     Manual,
 }
 
@@ -62,6 +63,8 @@ pub struct Settings {
     pub gptk_version: Option<String>,
     #[serde(default)]
     pub gptk_skipped: bool,
+    #[serde(default)]
+    pub steam_runtime_installed: bool,
 }
 
 impl Default for Settings {
@@ -73,6 +76,7 @@ impl Default for Settings {
             wine_version: None,
             gptk_version: None,
             gptk_skipped: false,
+            steam_runtime_installed: false,
         }
     }
 }
@@ -118,5 +122,28 @@ mod tests {
         assert_eq!(s.wine_version, None);
         assert_eq!(s.gptk_version, None);
         assert!(!s.gptk_skipped);
+    }
+
+    #[test]
+    fn settings_default_has_steam_runtime_off() {
+        let s = Settings::default();
+        assert!(!s.steam_runtime_installed);
+    }
+
+    #[test]
+    fn settings_old_json_loads_steam_runtime_default() {
+        let old = r#"{"steam_path":"/tmp/s","data_path":"/tmp/d"}"#;
+        let s: Settings = serde_json::from_str(old).unwrap();
+        assert!(!s.steam_runtime_installed);
+    }
+
+    #[test]
+    fn game_source_serializes_with_underscore() {
+        let s = serde_json::to_string(&GameSource::SteamWine).unwrap();
+        assert_eq!(s, "\"steam_wine\"");
+        let m = serde_json::to_string(&GameSource::Manual).unwrap();
+        assert_eq!(m, "\"manual\"");
+        let st = serde_json::to_string(&GameSource::Steam).unwrap();
+        assert_eq!(st, "\"steam\"");
     }
 }
