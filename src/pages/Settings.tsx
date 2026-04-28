@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useSettings } from "../hooks/useSettings";
 import { getSettings, startGptkWatch, stopGptkWatch, resetSteamRuntime } from "../lib/tauri";
 import { useTauriEvent } from "../hooks/useTauriEvent";
@@ -100,6 +101,11 @@ function GptkSection() {
 
 function SteamRuntimeSection() {
   const { state, startInstall } = useSteamRuntime();
+  const [dataPath, setDataPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSettings().then((s) => setDataPath(s.data_path));
+  }, []);
 
   async function handleReset() {
     if (!window.confirm(
@@ -113,6 +119,22 @@ function SteamRuntimeSection() {
     }
   }
 
+  async function openCatleapLogs() {
+    if (!dataPath) return;
+    await openPath(`${dataPath}/logs`).catch((e) => alert(`Failed: ${e}`));
+  }
+
+  async function openSteamLogs() {
+    if (!dataPath) return;
+    const steamLogs = `${dataPath}/prefixes/_steam_runtime/drive_c/Program Files (x86)/Steam/logs`;
+    await openPath(steamLogs).catch((e) => alert(`Failed: ${e}`));
+  }
+
+  async function revealRuntimePrefix() {
+    if (!dataPath) return;
+    await revealItemInDir(`${dataPath}/prefixes/_steam_runtime`).catch((e) => alert(`Failed: ${e}`));
+  }
+
   return (
     <section className="mt-8">
       <h2 className="text-lg font-semibold text-gray-900 mb-3">Steam Runtime</h2>
@@ -121,7 +143,7 @@ function SteamRuntimeSection() {
           <p className="text-sm text-gray-600 mb-3">
             Steam-Windows is installed. Use the Library to launch Windows games.
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap mb-3">
             <button
               onClick={handleReset}
               className="px-4 py-2 rounded-lg bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50"
@@ -134,6 +156,29 @@ function SteamRuntimeSection() {
             >
               Reinstall
             </button>
+          </div>
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Debug</p>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={openCatleapLogs}
+                className="px-3 py-1.5 rounded-md bg-white border border-gray-200 text-gray-600 text-xs hover:bg-gray-50"
+              >
+                Open Catleap logs
+              </button>
+              <button
+                onClick={openSteamLogs}
+                className="px-3 py-1.5 rounded-md bg-white border border-gray-200 text-gray-600 text-xs hover:bg-gray-50"
+              >
+                Open Steam logs
+              </button>
+              <button
+                onClick={revealRuntimePrefix}
+                className="px-3 py-1.5 rounded-md bg-white border border-gray-200 text-gray-600 text-xs hover:bg-gray-50"
+              >
+                Reveal prefix in Finder
+              </button>
+            </div>
           </div>
         </>
       )}
