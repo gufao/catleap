@@ -166,6 +166,85 @@ pub fn bootstrap_prefix(
     Ok(())
 }
 
+use crate::wine::installer::download_to;
+
+const STEAM_INSTALLER_URL: &str =
+    "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe";
+const MIN_INSTALLER_BYTES: u64 = 1_000_000; // sanity; real file ≈2.3 MB
+
+pub async fn run_install(
+    data_path: &Path,
+    wine_binary: &Path,
+    cancelled: Arc<AtomicBool>,
+    mut emit_phase: impl FnMut(SteamInstallPhase),
+) -> Result<(), String> {
+    use crate::wine::wine_command;
+
+    // 1. Bootstrap (idempotent).
+    bootstrap_prefix(data_path, wine_binary, cancelled.clone(), |p| emit_phase(p))?;
+
+    // 2. Download SteamSetup.exe if not already cached.
+    let installer = cached_installer_path(data_path);
+    let needs_download = !installer.exists()
+        || std::fs::metadata(&installer).map(|m| m.len() < MIN_INSTALLER_BYTES).unwrap_or(true);
+
+    if needs_download {
+        std::fs::create_dir_all(installer.parent().unwrap())
+            .map_err(|e| format!("mkdir cache: {e}"))?;
+        let tmp = installer.with_extension("partial");
+        let mut last_emit = std::time::Instant::now();
+        download_to(STEAM_INSTALLER_URL, &tmp, cancelled.clone(), |d, t| {
+            if last_emit.elapsed() >= std::time::Duration::from_millis(100) {
+                last_emit = std::time::Instant::now();
+                emit_phase(SteamInstallPhase::DownloadingInstaller {
+                    bytes_done: d,
+                    bytes_total: t,
+                });
+            }
+        })
+        .await?;
+        let sz = std::fs::metadata(&tmp).map(|m| m.len()).unwrap_or(0);
+        if sz < MIN_INSTALLER_BYTES {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(format!("downloaded SteamSetup.exe too small ({sz} bytes)"));
+        }
+        std::fs::rename(&tmp, &installer).map_err(|e| format!("promote installer: {e}"))?;
+    }
+
+    if cancelled.load(Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
+
+    // 3. Spawn the installer GUI inside the prefix.
+    emit_phase(SteamInstallPhase::LaunchingInstaller);
+    let prefix = runtime_prefix_path(data_path);
+    let status = wine_command(wine_binary)
+        .arg(&installer)
+        .env("WINEPREFIX", &prefix)
+        .env("WINEARCH", "win64")
+        .env("WINEDEBUG", "-all")
+        .status()
+        .map_err(|e| format!("spawn SteamSetup.exe: {e}"))?;
+
+    if !status.success() {
+        return Err(format!(
+            "Steam installer exited with status {}",
+            status.code().unwrap_or(-1)
+        ));
+    }
+
+    // 4. Verify Steam.exe ended up where we expected.
+    if !is_installed(data_path) {
+        return Err(format!(
+            "Steam installer reported success but {} is missing",
+            steam_exe_path(data_path).display()
+        ));
+    }
+
+    emit_phase(SteamInstallPhase::Done);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +327,17 @@ mod tests {
         std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
         std::fs::write(&exe, b"").unwrap();
         assert!(is_installed(tmp.path()));
+    }
+
+    #[test]
+    fn under_size_cached_installer_triggers_redownload() {
+        let tmp = TempDir::new().unwrap();
+        let installer = cached_installer_path(tmp.path());
+        std::fs::create_dir_all(installer.parent().unwrap()).unwrap();
+        std::fs::write(&installer, b"x".repeat(100)).unwrap();
+        let needs = !installer.exists()
+            || std::fs::metadata(&installer).map(|m| m.len() < MIN_INSTALLER_BYTES).unwrap_or(true);
+        assert!(needs, "installer under MIN_INSTALLER_BYTES should trigger redownload");
     }
 
     #[test]
