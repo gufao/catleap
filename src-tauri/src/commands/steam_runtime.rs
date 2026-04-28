@@ -94,17 +94,21 @@ pub fn launch_steam_runtime(state: State<'_, AppState>) -> Result<(), String> {
     );
 
     let mut cmd = wine_command(&wine_binary);
-    // CEF (Chromium-based Steam UI) flags required for clean Wine/macOS launch:
+    // Steam-on-Wine launch flags:
     // - -no-cef-sandbox:  Chromium sandbox doesn't work through Wine on macOS;
     //   Steam shows "SteamWebHelper not responding" dialog without this.
-    // - -cef-disable-gpu: GPU acceleration in CEF crashes early on Wine/macOS
-    //   before the watchdog can show its dialog.
+    // - -cef-disable-gpu: GPU acceleration in CEF crashes on Wine/macOS.
+    // - -tenfoot:         Big Picture mode. Uses a different renderer than the
+    //   desktop UI; the desktop SteamWebHelper IPC (shared-memory bootstrap)
+    //   is broken with current Wine + Steam Client builds, while Big Picture
+    //   bypasses much of that pipeline.
     //
     // Do NOT pass -silent: it minimises Steam to the system tray on launch
     // with no visible window — users think nothing happened.
     cmd.arg(&steam_exe)
         .arg("-no-cef-sandbox")
-        .arg("-cef-disable-gpu");
+        .arg("-cef-disable-gpu")
+        .arg("-tenfoot");
     cmd.current_dir(&prefix);
     cmd.stdout(Stdio::from(log)).stderr(Stdio::from(log_dup));
     cmd.env_clear();
