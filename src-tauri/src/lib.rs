@@ -9,6 +9,10 @@ use commands::games::{add_manual_game, list_games, read_game_log, remove_game, s
 use commands::launcher::{check_wine_status, get_running_games, play_game, stop_game};
 use commands::onboarding::{cancel_wine_install, eject_gptk_volume, skip_gptk, start_gptk_watch, start_wine_install, stop_gptk_watch};
 use commands::settings::{get_settings, update_settings};
+use commands::steam_runtime::{
+    cancel_steam_install, launch_steam_runtime, reset_steam_runtime,
+    start_steam_install, stop_steam_runtime,
+};
 use compat::database;
 use models::Settings;
 use notify::{EventKind, RecursiveMode, Watcher};
@@ -78,6 +82,8 @@ pub fn run() {
             process_monitor: ProcessMonitor::new(),
             install_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             gptk_watching: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            steam_install_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            steam_installing: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -104,6 +110,11 @@ pub fn run() {
             stop_gptk_watch,
             skip_gptk,
             eject_gptk_volume,
+            start_steam_install,
+            cancel_steam_install,
+            launch_steam_runtime,
+            stop_steam_runtime,
+            reset_steam_runtime,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

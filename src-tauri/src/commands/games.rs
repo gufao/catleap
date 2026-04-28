@@ -16,6 +16,8 @@ pub struct AppState {
     pub process_monitor: ProcessMonitor,
     pub install_cancel: Arc<AtomicBool>,
     pub gptk_watching: Arc<AtomicBool>,
+    pub steam_install_cancel: Arc<AtomicBool>,
+    pub steam_installing: Arc<AtomicBool>,
 }
 
 #[tauri::command]
