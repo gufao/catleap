@@ -8,7 +8,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 pub const WINE_EXPECTED_VERSION: &str = "1.0.0";
-// Placeholder until first real release is published.
 pub const WINE_RELEASE_URL: &str =
     "https://github.com/gufao/catleap/releases/download/wine-catleap-v1.0.0/wine-catleap-1.0.0.tar.xz";
 pub const WINE_EXPECTED_SHA256: &str =
