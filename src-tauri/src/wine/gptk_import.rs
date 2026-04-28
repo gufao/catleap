@@ -24,9 +24,13 @@ pub enum GptkPhase {
 
 /// Look inside a mounted volume for the Apple GPTK D3DMetal libs.
 /// Returns `None` if the volume doesn't have the expected layout.
+///
+/// Apple ships GPTK 3 with the framework under
+/// `redist/lib/external/D3DMetal.framework`. We copy the whole `redist/lib/`
+/// tree (`external/` + `wine/`) into the user's data dir.
 pub fn detect_gptk_in_volume(volume: &Path) -> Option<GptkInfo> {
     let lib = volume.join("redist/lib");
-    let framework = lib.join("D3DMetal.framework");
+    let framework = lib.join("external/D3DMetal.framework");
     if !framework.exists() {
         return None;
     }
@@ -117,7 +121,7 @@ pub fn copy_libs(info: &GptkInfo, data_path: &Path) -> Result<(), String> {
         return Err(format!("ditto exit {}", status.code().unwrap_or(-1)));
     }
 
-    let probe = staging.join("D3DMetal.framework/Versions/A/D3DMetal");
+    let probe = staging.join("external/D3DMetal.framework/Versions/A/D3DMetal");
     if !probe.exists() {
         let _ = std::fs::remove_dir_all(&staging);
         return Err(format!("post-copy validation failed: {} missing", probe.display()));
@@ -198,7 +202,7 @@ mod tests {
 
     fn make_gptk_volume(root: &Path, name: &str) -> PathBuf {
         let v = root.join(name);
-        let fw = v.join("redist/lib/D3DMetal.framework/Versions/A");
+        let fw = v.join("redist/lib/external/D3DMetal.framework/Versions/A");
         std::fs::create_dir_all(&fw).unwrap();
         std::fs::write(fw.join("D3DMetal"), b"").unwrap();
         v
@@ -261,7 +265,7 @@ mod tests {
         let info = detect_gptk_in_volume(&volume).unwrap();
         let data = TempDir::new().unwrap();
         copy_libs(&info, data.path()).unwrap();
-        assert!(data.path().join("gptk/lib/D3DMetal.framework/Versions/A/D3DMetal").exists());
+        assert!(data.path().join("gptk/lib/external/D3DMetal.framework/Versions/A/D3DMetal").exists());
     }
 
     #[test]
@@ -269,7 +273,7 @@ mod tests {
         // Source missing the inner D3DMetal binary — copy should fail.
         let tmp = TempDir::new().unwrap();
         let v = tmp.path().join("Bad-1.0");
-        let fw_dir = v.join("redist/lib/D3DMetal.framework");
+        let fw_dir = v.join("redist/lib/external/D3DMetal.framework");
         std::fs::create_dir_all(&fw_dir).unwrap();
         // intentionally no Versions/A/D3DMetal
         let info = GptkInfo { volume: v.clone(), lib_path: v.join("redist/lib"), version: "1.0".into() };

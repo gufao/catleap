@@ -13,10 +13,13 @@ pub struct WineStatus {
     pub expected_version: String,
 }
 
-/// Path to the imported D3DMetal libraries, if present.
+/// Path to the imported D3DMetal libraries, if present. The framework
+/// lives at `<data_path>/gptk/lib/external/D3DMetal.framework` (matching
+/// Apple's GPTK 3 layout); we return the parent `gptk/lib/` so the launch
+/// env can reference both `<lib>` and `<lib>/external`.
 pub fn gptk_lib_path(data_path: &Path) -> Option<PathBuf> {
     let lib = data_path.join("gptk/lib");
-    lib.join("D3DMetal.framework").exists().then_some(lib)
+    lib.join("external/D3DMetal.framework").exists().then_some(lib)
 }
 
 /// Check which Wine variant is available on the system.
@@ -118,7 +121,7 @@ mod tests {
     fn check_wine_status_detects_gptk_libs_present() {
         let tmp = TempDir::new().unwrap();
         make_wine_at(tmp.path());
-        let fw = tmp.path().join("gptk/lib/D3DMetal.framework");
+        let fw = tmp.path().join("gptk/lib/external/D3DMetal.framework");
         std::fs::create_dir_all(&fw).unwrap();
         let status = check_wine_status(tmp.path(), None);
         assert!(status.installed);
