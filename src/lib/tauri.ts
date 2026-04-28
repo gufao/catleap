@@ -76,3 +76,23 @@ export function skipGptk(): Promise<void> {
 export function ejectGptkVolume(volumePath: string): Promise<void> {
   return invoke<void>("eject_gptk_volume", { volumePath });
 }
+
+export function startSteamInstall(): Promise<void> {
+  return invoke<void>("start_steam_install");
+}
+
+export function cancelSteamInstall(): Promise<void> {
+  return invoke<void>("cancel_steam_install");
+}
+
+export function launchSteamRuntime(): Promise<void> {
+  return invoke<void>("launch_steam_runtime");
+}
+
+export function stopSteamRuntime(): Promise<void> {
+  return invoke<void>("stop_steam_runtime");
+}
+
+export function resetSteamRuntime(): Promise<void> {
+  return invoke<void>("reset_steam_runtime");
+}
